@@ -5,11 +5,15 @@ import {
   Button,
   useMediaQuery,
   CircularProgress,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import { signupStyles } from "./signupStyles";
 import { Link, useNavigate } from "react-router-dom";
 import PersonIcon from "@mui/icons-material/Person";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { SmallMobileView } from "../../styles/theme";
 import { toast } from "react-toastify";
 import api from "../../api/axios";
@@ -20,6 +24,7 @@ const Signup = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [showPassword, setShowPassword] = useState(false);
 
   const [form, setForm] = useState({
     name: "",
@@ -71,6 +76,12 @@ const Signup = () => {
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleSignup();
+    }
+  };
+
   useEffect(() => {
     const user = localStorage.getItem("user");
     if (user) {
@@ -105,6 +116,7 @@ const Signup = () => {
               placeholder="John Doe"
               value={form.name}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               error={!!errors.name}
               helperText={errors.name}
               fullWidth
@@ -115,6 +127,7 @@ const Signup = () => {
               placeholder="name@company.com"
               value={form.email}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               error={!!errors.email}
               helperText={errors.email}
               fullWidth
@@ -122,13 +135,28 @@ const Signup = () => {
             <TextField
               label="Password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               value={form.password}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               error={!!errors.password}
               helperText={errors.password}
               fullWidth
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      edge="end"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
           </Box>
 

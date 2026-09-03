@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Grid,
   Paper,
   Table,
   TableBody,
@@ -20,6 +19,10 @@ import {
   Box,
   IconButton,
   Tooltip,
+  TextField,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import MovieEditIcon from "@mui/icons-material/MovieEdit";
@@ -28,6 +31,7 @@ import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AddIcon from "@mui/icons-material/Add";
 import PaymentIcon from "@mui/icons-material/Payment";
+import SearchIcon from "@mui/icons-material/Search";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 
@@ -46,6 +50,13 @@ const Stock = () => {
   const [openDelete, setOpenDelete] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
+  // Search state
+  const [searchMiller, setSearchMiller] = useState("");
+  const [searchDate, setSearchDate] = useState("");
+  const [searchReceipt, setSearchReceipt] = useState("");
+  const [searchItem, setSearchItem] = useState("");
+  const [stockFilter, setStockFilter] = useState("all"); // "all", "inStock", "outOfStock"
+
   // Record Payment Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [targetPayment, setTargetPayment] = useState(null);
@@ -58,7 +69,11 @@ const Stock = () => {
     try {
       setLoading(true);
       const { data } = await api.get("/stock/stocks");
-      setStocks(data.data || []);
+      // Sort newest first
+      const sorted = (data.data || []).sort(
+        (a, b) => new Date(b.date) - new Date(a.date)
+      );
+      setStocks(sorted);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch stocks");
     } finally {
@@ -101,6 +116,37 @@ const Stock = () => {
   useEffect(() => {
     fetchStocks();
   }, []);
+
+  // Filter and search logic
+  const filteredStocks = stocks.filter((stock) => {
+    const millerName = stock.millerId?.name?.toLowerCase() || "";
+    const itemName = stock.itemName?.toLowerCase() || "";
+    const receiptNo = String(stock.receiptNumber || "").toLowerCase();
+    const dateStr = stock.date ? new Date(stock.date).toLocaleDateString("en-CA") : "";
+
+    const millerMatch = searchMiller === "" || millerName.includes(searchMiller.toLowerCase());
+    const itemMatch = searchItem === "" || itemName.includes(searchItem.toLowerCase());
+    const receiptMatch = searchReceipt === "" || receiptNo.includes(searchReceipt.toLowerCase());
+    const dateMatch = searchDate === "" || dateStr === searchDate;
+
+    const inStock = stock.remainingQuantity > 0;
+    const stockStatusMatch =
+      stockFilter === "all" ||
+      (stockFilter === "inStock" && inStock) ||
+      (stockFilter === "outOfStock" && !inStock);
+
+    return millerMatch && itemMatch && receiptMatch && dateMatch && stockStatusMatch;
+  });
+
+  const hasFilters = searchMiller || searchDate || searchReceipt || searchItem || stockFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchMiller("");
+    setSearchDate("");
+    setSearchReceipt("");
+    setSearchItem("");
+    setStockFilter("all");
+  };
 
   const renderDueDate = (stock) => {
     const remaining = Number(stock.remainingAmount || 0);
@@ -159,8 +205,83 @@ const Stock = () => {
         </Button>
       </Box>
 
-      <TableContainer component={Paper} sx={styles.tableContainer}>
-        <Table>
+      {/* Search & Filter Controls */}
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "flex-end", mb: 1 }}>
+        <TextField
+          placeholder="Miller / Supplier"
+          value={searchMiller}
+          onChange={(e) => setSearchMiller(e.target.value)}
+          size="small"
+          sx={{ minWidth: "150px", flex: "1 1 150px" }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          placeholder="Item Name"
+          value={searchItem}
+          onChange={(e) => setSearchItem(e.target.value)}
+          size="small"
+          sx={{ minWidth: "150px", flex: "1 1 150px" }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          placeholder="Receipt #"
+          value={searchReceipt}
+          onChange={(e) => setSearchReceipt(e.target.value)}
+          size="small"
+          sx={{ minWidth: "130px", flex: "1 1 130px" }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          type="date"
+          value={searchDate}
+          onChange={(e) => setSearchDate(e.target.value)}
+          size="small"
+          InputLabelProps={{ shrink: true }}
+          sx={{ minWidth: "150px", flex: "1 1 150px" }}
+        />
+        <ToggleButtonGroup
+          value={stockFilter}
+          exclusive
+          onChange={(e, val) => { if (val !== null) setStockFilter(val); }}
+          size="small"
+        >
+          <ToggleButton value="all" sx={{ textTransform: "none", fontSize: "12px", px: 1.5 }}>All</ToggleButton>
+          <ToggleButton value="inStock" sx={{ textTransform: "none", fontSize: "12px", px: 1.5, color: colors.successDark }}>In Stock</ToggleButton>
+          <ToggleButton value="outOfStock" sx={{ textTransform: "none", fontSize: "12px", px: 1.5, color: colors.errorDark }}>Out of Stock</ToggleButton>
+        </ToggleButtonGroup>
+        {hasFilters && (
+          <Button size="small" variant="outlined" color="inherit" onClick={clearFilters} sx={{ textTransform: "none", height: "36px" }}>
+            Clear
+          </Button>
+        )}
+      </Box>
+
+      {hasFilters && (
+        <Typography variant="caption" sx={{ color: colors.textSecondary, mb: 1 }}>
+          Showing {filteredStocks.length} of {stocks.length} records
+        </Typography>
+      )}
+
+      <TableContainer component={Paper} sx={{ ...styles.tableContainer, overflowX: "auto" }}>
+        <Table sx={{ minWidth: "700px" }}>
           <TableHead>
             <TableRow>
               <TableCell>Receipt #</TableCell>
@@ -181,14 +302,16 @@ const Stock = () => {
                   <CircularProgress size={32} />
                 </TableCell>
               </TableRow>
-            ) : stocks.length === 0 ? (
+            ) : filteredStocks.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 6, color: colors.textSecondary }}>
-                  No Stock Found. Click 'Add New Stock' to get started.
+                  {hasFilters
+                    ? "No stock records match the current filters."
+                    : "No Stock Found. Click 'Add New Stock' to get started."}
                 </TableCell>
               </TableRow>
             ) : (
-              stocks.map((stock) => {
+              filteredStocks.map((stock) => {
                 const date = new Date(stock.date).toLocaleDateString();
                 const remaining = Number(stock.remainingAmount || 0);
 
@@ -262,15 +385,7 @@ const Stock = () => {
                             <EditIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Update Qty / Adjustments">
-                          <IconButton
-                            size="small"
-                            sx={{ color: colors.warning }}
-                            onClick={() => navigate(`/stocks/update/${stock._id}`)}
-                          >
-                            <MovieEditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
+
                         <Tooltip title="Delete Stock">
                           <IconButton
                             size="small"

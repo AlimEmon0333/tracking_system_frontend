@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Grid,
   Paper,
   Table,
   TableBody,
@@ -20,12 +19,17 @@ import {
   Box,
   IconButton,
   Tooltip,
+  TextField,
+  InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import AddIcon from "@mui/icons-material/Add";
+import SearchIcon from "@mui/icons-material/Search";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 
@@ -44,6 +48,13 @@ const Sales = () => {
   const [openDelete, setOpenDelete] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
 
+  // Search state
+  const [searchBuyer, setSearchBuyer] = useState("");
+  const [searchDate, setSearchDate] = useState("");
+  const [searchBill, setSearchBill] = useState("");
+  const [searchItem, setSearchItem] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); // "all", "paid", "unpaid", "partial"
+
   // Record Payment Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [targetPayment, setTargetPayment] = useState(null);
@@ -56,7 +67,11 @@ const Sales = () => {
     try {
       setLoading(true);
       const { data } = await api.get("/sales");
-      setSales(data.data || []);
+      // Sort newest first
+      const sorted = (data.data || []).sort(
+        (a, b) => new Date(b.date) - new Date(a.date)
+      );
+      setSales(sorted);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch invoices");
     } finally {
@@ -99,6 +114,37 @@ const Sales = () => {
   useEffect(() => {
     fetchSales();
   }, []);
+
+  // Filter and search logic
+  const filteredSales = sales.filter((sale) => {
+    const buyerName = sale.buyerId?.name?.toLowerCase() || "";
+    const itemName = sale.itemName?.toLowerCase() || "";
+    const billNo = String(sale.billNumber || "").toLowerCase();
+    const dateStr = sale.date ? new Date(sale.date).toLocaleDateString("en-CA") : "";
+
+    const buyerMatch = searchBuyer === "" || buyerName.includes(searchBuyer.toLowerCase());
+    const itemMatch = searchItem === "" || itemName.includes(searchItem.toLowerCase());
+    const billMatch = searchBill === "" || billNo.includes(searchBill.toLowerCase());
+    const dateMatch = searchDate === "" || dateStr === searchDate;
+
+    const statusMatch =
+      statusFilter === "all" ||
+      (statusFilter === "paid" && sale.status === "paid") ||
+      (statusFilter === "unpaid" && sale.status === "unpaid") ||
+      (statusFilter === "partial" && sale.status === "partial");
+
+    return buyerMatch && itemMatch && billMatch && dateMatch && statusMatch;
+  });
+
+  const hasFilters = searchBuyer || searchDate || searchBill || searchItem || statusFilter !== "all";
+
+  const clearFilters = () => {
+    setSearchBuyer("");
+    setSearchDate("");
+    setSearchBill("");
+    setSearchItem("");
+    setStatusFilter("all");
+  };
 
   const renderStatus = (status) => {
     if (status === "paid") {
@@ -168,8 +214,84 @@ const Sales = () => {
         </Button>
       </Box>
 
-      <TableContainer component={Paper} sx={styles.tableContainer}>
-        <Table>
+      {/* Search & Filter Controls */}
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, alignItems: "flex-end", mb: 1 }}>
+        <TextField
+          placeholder="Buyer Name"
+          value={searchBuyer}
+          onChange={(e) => setSearchBuyer(e.target.value)}
+          size="small"
+          sx={{ minWidth: "150px", flex: "1 1 150px" }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          placeholder="Item Name"
+          value={searchItem}
+          onChange={(e) => setSearchItem(e.target.value)}
+          size="small"
+          sx={{ minWidth: "150px", flex: "1 1 150px" }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          placeholder="Bill #"
+          value={searchBill}
+          onChange={(e) => setSearchBill(e.target.value)}
+          size="small"
+          sx={{ minWidth: "120px", flex: "1 1 120px" }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+              </InputAdornment>
+            ),
+          }}
+        />
+        <TextField
+          type="date"
+          value={searchDate}
+          onChange={(e) => setSearchDate(e.target.value)}
+          size="small"
+          InputLabelProps={{ shrink: true }}
+          sx={{ minWidth: "150px", flex: "1 1 150px" }}
+        />
+        <ToggleButtonGroup
+          value={statusFilter}
+          exclusive
+          onChange={(e, val) => { if (val !== null) setStatusFilter(val); }}
+          size="small"
+        >
+          <ToggleButton value="all" sx={{ textTransform: "none", fontSize: "12px", px: 1.5 }}>All</ToggleButton>
+          <ToggleButton value="paid" sx={{ textTransform: "none", fontSize: "12px", px: 1.5, color: colors.successDark }}>Paid</ToggleButton>
+          <ToggleButton value="partial" sx={{ textTransform: "none", fontSize: "12px", px: 1.5, color: colors.warningDark }}>Partial</ToggleButton>
+          <ToggleButton value="unpaid" sx={{ textTransform: "none", fontSize: "12px", px: 1.5, color: colors.errorDark }}>Unpaid</ToggleButton>
+        </ToggleButtonGroup>
+        {hasFilters && (
+          <Button size="small" variant="outlined" color="inherit" onClick={clearFilters} sx={{ textTransform: "none", height: "36px" }}>
+            Clear
+          </Button>
+        )}
+      </Box>
+
+      {hasFilters && (
+        <Typography variant="caption" sx={{ color: colors.textSecondary, mb: 1 }}>
+          Showing {filteredSales.length} of {sales.length} records
+        </Typography>
+      )}
+
+      <TableContainer component={Paper} sx={{ ...styles.tableContainer, overflowX: "auto" }}>
+        <Table sx={{ minWidth: "700px" }}>
           <TableHead>
             <TableRow>
               <TableCell>Bill #</TableCell>
@@ -190,14 +312,16 @@ const Sales = () => {
                   <CircularProgress size={32} />
                 </TableCell>
               </TableRow>
-            ) : sales.length === 0 ? (
+            ) : filteredSales.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} align="center" sx={{ py: 6, color: colors.textSecondary }}>
-                  No Invoices Found. Click 'New Invoice' to get started.
+                  {hasFilters
+                    ? "No invoices match the current filters."
+                    : "No Invoices Found. Click 'New Invoice' to get started."}
                 </TableCell>
               </TableRow>
             ) : (
-              sales.map((sale) => {
+              filteredSales.map((sale) => {
                 const date = new Date(sale.date).toLocaleDateString();
                 const remaining = Number(sale.remainingAmount || 0);
 

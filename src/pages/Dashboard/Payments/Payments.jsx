@@ -22,6 +22,8 @@ import {
   DialogActions,
   IconButton,
   Tooltip,
+  TextField,
+  InputAdornment,
 } from "@mui/material";
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddCardIcon from "@mui/icons-material/AddCard";
@@ -31,6 +33,7 @@ import CallReceivedIcon from "@mui/icons-material/CallReceived";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import PaymentIcon from "@mui/icons-material/Payment";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
+import SearchIcon from "@mui/icons-material/Search";
 import { toast } from "react-toastify";
 
 import api from "../../../api/axios";
@@ -46,6 +49,10 @@ const Payments = () => {
   const [loading, setLoading] = useState(false);
   const [summaryData, setSummaryData] = useState(null);
   const [paymentsList, setPaymentsList] = useState([]);
+
+  // History search state
+  const [historySearch, setHistorySearch] = useState("");
+  const [historyDateFilter, setHistoryDateFilter] = useState("");
 
   // Record Payment Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -504,92 +511,142 @@ const Payments = () => {
             )}
 
             {/* TAB 3: Payment History Ledger */}
-            {activeTab === 3 && (
-              <TableContainer sx={styles.tableContainer}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Party & Ref</TableCell>
-                      <TableCell>Amount</TableCell>
-                      <TableCell>Method</TableCell>
-                      <TableCell>Notes</TableCell>
-                      <TableCell align="right">Actions</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {paymentsList.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} align="center" sx={{ py: 6, color: colors.textSecondary }}>
-                          No payment transactions recorded yet.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      paymentsList.map((p) => {
-                        const isInflow = p.type === "inflow";
-                        return (
-                          <TableRow key={p._id} hover>
-                            <TableCell>{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
-                            <TableCell>
-                              <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                {isInflow ? (
-                                  <CallReceivedIcon sx={{ color: colors.successDark, fontSize: "18px" }} />
-                                ) : (
-                                  <CallMadeIcon sx={{ color: colors.textPrimary, fontSize: "18px" }} />
-                                )}
-                                <Typography variant="body2" sx={isInflow ? styles.inflowBadge : styles.outflowBadge}>
-                                  {isInflow ? "Received" : "Paid"}
-                                </Typography>
-                              </Box>
-                            </TableCell>
-                            <TableCell>
-                              <Typography variant="body2" fontWeight={600}>{p.partyId?.name || "N/A"}</Typography>
-                              <Typography variant="caption" color="textSecondary">Ref: {p.referenceNumber || "-"}</Typography>
-                            </TableCell>
-                            <TableCell sx={{ fontWeight: 700, color: isInflow ? colors.successDark : colors.textPrimary }}>
-                              Rs. {p.amount?.toLocaleString()}
-                            </TableCell>
-                            <TableCell sx={{ textTransform: "capitalize" }}>
-                              {p.paymentMethod?.replace("_", " ")}
-                            </TableCell>
-                            <TableCell sx={{ color: colors.textSecondary, maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {p.notes || "-"}
-                            </TableCell>
-                            <TableCell align="right">
-                              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                                <Tooltip title="View Receipt">
-                                  <IconButton
-                                    size="small"
-                                    sx={{ color: colors.primary, bgcolor: colors.infoLight }}
-                                    onClick={() => {
-                                      setReceiptData(p);
-                                      setReceiptType("payment");
-                                      setReceiptOpen(true);
-                                    }}
-                                  >
-                                    <ReceiptLongIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="Revert Transaction">
-                                  <IconButton
-                                    size="small"
-                                    sx={{ color: colors.error, bgcolor: colors.errorLight }}
-                                    onClick={() => handleDeleteClick(p)}
-                                  >
-                                    <DeleteIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Box>
+            {activeTab === 3 && (() => {
+              const filteredHistory = paymentsList.filter((p) => {
+                const partyName = p.partyId?.name?.toLowerCase() || "";
+                const ref = (p.referenceNumber || "").toLowerCase();
+                const method = (p.paymentMethod || "").toLowerCase();
+                const notes = (p.notes || "").toLowerCase();
+                const q = historySearch.toLowerCase();
+                const textMatch = q === "" || partyName.includes(q) || ref.includes(q) || method.includes(q) || notes.includes(q);
+                const dateMatch = historyDateFilter === "" ||
+                  new Date(p.paymentDate).toLocaleDateString("en-CA") === historyDateFilter;
+                return textMatch && dateMatch;
+              });
+              return (
+                <Box>
+                  {/* Search Bar */}
+                  <Box sx={{ p: 2, display: "flex", gap: 2, flexWrap: "wrap", borderBottom: `1px solid ${colors.border}` }}>
+                    <TextField
+                      placeholder="Search by party, reference, method, notes..."
+                      value={historySearch}
+                      onChange={(e) => setHistorySearch(e.target.value)}
+                      size="small"
+                      sx={{ flex: 1, minWidth: "220px" }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <SearchIcon sx={{ color: colors.textSecondary, fontSize: "18px" }} />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                    <TextField
+                      type="date"
+                      value={historyDateFilter}
+                      onChange={(e) => setHistoryDateFilter(e.target.value)}
+                      size="small"
+                      InputLabelProps={{ shrink: true }}
+                      sx={{ minWidth: "170px" }}
+                    />
+                    {(historySearch || historyDateFilter) && (
+                      <Button size="small" variant="outlined" color="inherit"
+                        onClick={() => { setHistorySearch(""); setHistoryDateFilter(""); }}
+                        sx={{ textTransform: "none" }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </Box>
+                  <TableContainer sx={styles.tableContainer}>
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Date</TableCell>
+                          <TableCell>Type</TableCell>
+                          <TableCell>Party & Ref</TableCell>
+                          <TableCell>Amount</TableCell>
+                          <TableCell>Method</TableCell>
+                          <TableCell>Notes</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {filteredHistory.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} align="center" sx={{ py: 6, color: colors.textSecondary }}>
+                              {historySearch || historyDateFilter
+                                ? "No payments match the search/filter."
+                                : "No payment transactions recorded yet."}
                             </TableCell>
                           </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            )}
+                        ) : (
+                          filteredHistory.map((p) => {
+                            const isInflow = p.type === "inflow";
+                            return (
+                              <TableRow key={p._id} hover>
+                                <TableCell>{new Date(p.paymentDate).toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                  <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    {isInflow ? (
+                                      <CallReceivedIcon sx={{ color: colors.successDark, fontSize: "18px" }} />
+                                    ) : (
+                                      <CallMadeIcon sx={{ color: colors.textPrimary, fontSize: "18px" }} />
+                                    )}
+                                    <Typography variant="body2" sx={isInflow ? styles.inflowBadge : styles.outflowBadge}>
+                                      {isInflow ? "Received" : "Paid"}
+                                    </Typography>
+                                  </Box>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2" fontWeight={600}>{p.partyId?.name || "N/A"}</Typography>
+                                  <Typography variant="caption" color="textSecondary">Ref: {p.referenceNumber || "-"}</Typography>
+                                </TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: isInflow ? colors.successDark : colors.textPrimary }}>
+                                  Rs. {p.amount?.toLocaleString()}
+                                </TableCell>
+                                <TableCell sx={{ textTransform: "capitalize" }}>
+                                  {p.paymentMethod?.replace("_", " ")}
+                                </TableCell>
+                                <TableCell sx={{ color: colors.textSecondary, maxWidth: "150px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {p.notes || "-"}
+                                </TableCell>
+                                <TableCell align="right">
+                                  <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                                    <Tooltip title="View Receipt">
+                                      <IconButton
+                                        size="small"
+                                        sx={{ color: colors.primary, bgcolor: colors.infoLight }}
+                                        onClick={() => {
+                                          setReceiptData(p);
+                                          setReceiptType("payment");
+                                          setReceiptOpen(true);
+                                        }}
+                                      >
+                                        <ReceiptLongIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                    <Tooltip title="Revert Transaction">
+                                      <IconButton
+                                        size="small"
+                                        sx={{ color: colors.error, bgcolor: colors.errorLight }}
+                                        onClick={() => handleDeleteClick(p)}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Tooltip>
+                                  </Box>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              );
+            })()}
           </>
         )}
       </Paper>

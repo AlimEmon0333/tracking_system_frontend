@@ -1,16 +1,18 @@
 import {
   Button,
   CircularProgress,
-  Grid,
   IconButton,
   Typography,
   useMediaQuery,
   Box,
   Tooltip,
+  TextField,
+  InputAdornment,
 } from "@mui/material";
 import React, { useState, useEffect } from "react";
 import { partiesStyle } from "./partiesStyles";
 import AddIcon from "@mui/icons-material/Add";
+import SearchIcon from "@mui/icons-material/Search";
 import { SmallMobileView, colors } from "../../../styles/theme";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -31,6 +33,7 @@ const Parties = () => {
   const [loading, setLoading] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleCloseDeleteModal = () => {
     setDeleteModalOpen(false);
@@ -48,13 +51,18 @@ const Parties = () => {
     try {
       setLoading(true);
       const { data } = await api.get("/party");
-      setParties(data.data);
+      // Sort newest first by createdAt
+      const sorted = (data.data || []).sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+      );
+      setParties(sorted);
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch parties");
     } finally {
       setLoading(false);
     }
   };
+
   const handleSuccess = () => {
     fetchParties();
   };
@@ -62,6 +70,11 @@ const Parties = () => {
   useEffect(() => {
     fetchParties();
   }, []);
+
+  // Filter parties by search query
+  const filteredParties = parties.filter((party) =>
+    party.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <Box>
@@ -79,20 +92,47 @@ const Parties = () => {
         </Button>
       </Box>
 
+      {/* Search Bar */}
+      <Box sx={{ marginBottom: "20px" }}>
+        <TextField
+          placeholder="Search party by name..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          size="small"
+          fullWidth
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon sx={{ color: colors.textSecondary }} />
+              </InputAdornment>
+            ),
+          }}
+          sx={{
+            maxWidth: "400px",
+            "& .MuiOutlinedInput-root": {
+              borderRadius: "8px",
+              backgroundColor: colors.surface,
+            },
+          }}
+        />
+      </Box>
+
       <Box sx={styles.partiesContainer}>
         {loading ? (
           <Box sx={styles.loadingCont}>
             <CircularProgress />
           </Box>
-        ) : parties.length === 0 ? (
+        ) : filteredParties.length === 0 ? (
           <Box sx={styles.noPartiesCont}>
             <Typography sx={styles.noPartiesText}>
-              No parties found. Click "Add New Party" to create one.
+              {searchQuery
+                ? `No parties found matching "${searchQuery}".`
+                : 'No parties found. Click "Add New Party" to create one.'}
             </Typography>
           </Box>
         ) : (
           <Box sx={styles.partyCont}>
-            {parties.map((party) => (
+            {filteredParties.map((party) => (
               <Box key={party._id} sx={styles.partyCard}>
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
                   <Box>
@@ -136,9 +176,9 @@ const Parties = () => {
                   sx={styles.detailButton}
                   endIcon={<ArrowRightAltIcon />}
                   disableRipple
-                  onClick={() => toast.info("View details coming soon!")}
+                  onClick={() => navigate(`/parties/${party._id}`)}
                 >
-                  View History
+                  View Details
                 </Button>
               </Box>
             ))}

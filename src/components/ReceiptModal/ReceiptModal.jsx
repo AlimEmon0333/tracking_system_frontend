@@ -9,6 +9,7 @@ import {
   Typography,
   IconButton,
   Tooltip,
+  useMediaQuery,
 } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import PrintIcon from "@mui/icons-material/Print";
@@ -21,15 +22,143 @@ import { toast } from "react-toastify";
 
 import { colors } from "../../styles/theme";
 import { receiptStyles } from "./receiptStyles";
+import { SmallMobileView } from "../../styles/theme";
+const FALLBACK_WHATSAPP_NUMBER = "03172662943";
+
+const isIOS = () => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || navigator.vendor || "";
+  const isAppleTouch =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (ua.includes("Macintosh") && navigator.maxTouchPoints > 1);
+  return isAppleTouch;
+};
+
+const resolveWhatsAppNumber = (rawPhone) => {
+  const digitsOnly = (rawPhone || "").replace(/\D/g, "");
+  const isUsable = (num) => {
+    if (!num) return false;
+    let n = num;
+    if (n.startsWith("0092")) n = n.slice(4);
+    else if (n.startsWith("92")) n = n.slice(2);
+    else if (n.startsWith("0")) n = n.slice(1);
+    return n.length >= 10;
+  };
+
+  const source = isUsable(digitsOnly) ? digitsOnly : FALLBACK_WHATSAPP_NUMBER;
+  const cleaned = isUsable(digitsOnly)
+    ? digitsOnly
+    : FALLBACK_WHATSAPP_NUMBER.replace(/\D/g, "");
+
+  let normalized = cleaned;
+  if (normalized.startsWith("0092")) normalized = normalized.slice(4);
+  else if (normalized.startsWith("92")) normalized = normalized.slice(2);
+  else if (normalized.startsWith("0")) normalized = normalized.slice(1);
+
+  return `92${normalized}`;
+};
+const captureReceiptCanvas = async (node) => {
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+
+  const fullWidth = Math.max(node.scrollWidth, node.offsetWidth);
+  const fullHeight = Math.max(node.scrollHeight, node.offsetHeight);
+
+  const canvas = await html2canvas(node, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    width: fullWidth,
+    height: fullHeight,
+    windowWidth: fullWidth,
+    windowHeight: fullHeight,
+    scrollX: 0,
+    scrollY: 0,
+  });
+
+  return canvas;
+};
+
+const canvasToBlob = (canvas, type = "image/png", quality = 1) =>
+  new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+
+const buildPdfFromCanvas = (canvas, refValue) => {
+  const pdf = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const usableWidth = pageWidth - margin * 2;
+  const usableHeight = pageHeight - margin * 2;
+  const imgWidthMm = usableWidth;
+  const imgHeightMm = (canvas.height * imgWidthMm) / canvas.width;
+
+  if (imgHeightMm <= usableHeight) {
+    const imgData = canvas.toDataURL("image/png", 1.0);
+    pdf.addImage(imgData, "PNG", margin, margin, imgWidthMm, imgHeightMm);
+  } else {
+    const pageHeightPx = (usableHeight * canvas.width) / imgWidthMm;
+    let renderedHeightPx = 0;
+    let pageIndex = 0;
+
+    while (renderedHeightPx < canvas.height) {
+      const sliceHeightPx = Math.min(
+        pageHeightPx,
+        canvas.height - renderedHeightPx
+      );
+
+      const pageCanvas = document.createElement("canvas");
+      pageCanvas.width = canvas.width;
+      pageCanvas.height = sliceHeightPx;
+
+      const ctx = pageCanvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+      ctx.drawImage(
+        canvas,
+        0,
+        renderedHeightPx,
+        canvas.width,
+        sliceHeightPx,
+        0,
+        0,
+        canvas.width,
+        sliceHeightPx
+      );
+
+      const sliceImgData = pageCanvas.toDataURL("image/png", 1.0);
+      const sliceHeightMm = (sliceHeightPx * imgWidthMm) / canvas.width;
+
+      if (pageIndex > 0) pdf.addPage();
+      pdf.addImage(
+        sliceImgData,
+        "PNG",
+        margin,
+        margin,
+        imgWidthMm,
+        sliceHeightMm
+      );
+
+      renderedHeightPx += sliceHeightPx;
+      pageIndex += 1;
+    }
+  }
+
+  pdf.save(`Receipt_${refValue || "Doc"}.pdf`);
+};
 
 const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
   const styles = receiptStyles();
   const receiptRef = useRef();
   const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const mobileView = useMediaQuery(SmallMobileView);
 
   if (!data) return null;
 
-  // Derive Details based on Type
   let title = "Official Receipt";
   let refLabel = "Ref #";
   let refValue = "";
@@ -93,8 +222,8 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
       data.type === "deposit"
         ? "Bank Deposit Voucher"
         : data.type === "withdrawal"
-        ? "Bank Withdrawal Voucher"
-        : "Bank Transaction Voucher";
+          ? "Bank Withdrawal Voucher"
+          : "Bank Transaction Voucher";
     refLabel = "Tx Ref #";
     refValue = data.referenceNumber || "BANK-TX";
     partyLabel = "Bank Account";
@@ -113,29 +242,12 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
     paymentMethod = data.paymentMethod || "Bank Transfer";
   }
 
-  // 1. PDF Download
   const handleDownloadPDF = async () => {
     if (!receiptRef.current) return;
     try {
       setDownloading(true);
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      const imgWidth = 190;
-      const pageHeight = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 10, 10, imgWidth, imgHeight);
-      pdf.save(`Receipt_${refValue || "Doc"}.pdf`);
+      const canvas = await captureReceiptCanvas(receiptRef.current);
+      buildPdfFromCanvas(canvas, refValue);
       toast.success("Receipt PDF downloaded successfully!");
     } catch (err) {
       console.error(err);
@@ -146,62 +258,131 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
     }
   };
 
-  // 2. PNG Image Download
   const handleDownloadImage = async () => {
     if (!receiptRef.current) return;
     try {
       setDownloading(true);
-      const canvas = await html2canvas(receiptRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
+      const canvas = await captureReceiptCanvas(receiptRef.current);
       const link = document.createElement("a");
       link.download = `Receipt_${refValue || "Doc"}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = canvas.toDataURL("image/png", 1.0);
       link.click();
       toast.success("Receipt Image saved!");
     } catch (err) {
+      console.error(err);
       toast.error("Failed to save image");
     } finally {
       setDownloading(false);
     }
   };
 
-  // 3. Print
   const handlePrint = () => {
     window.print();
   };
 
-  // 4. WhatsApp Share
-  const handleWhatsAppShare = () => {
-    let text = `*📄 ${title}*\n`;
-    text += `*${refLabel}:* ${refValue}\n`;
-    text += `*Date:* ${dateValue}\n`;
-    text += `*${partyLabel}:* ${partyName}\n`;
-    if (data.itemName) {
-      text += `*Item:* ${data.itemName}\n`;
-      text += `*Quantity:* ${data.quantity || "-"} | *Weight:* ${data.weight || "-"} kg\n`;
-      text += `*Rate:* Rs. ${data.rate || data.purchaseRate || "-"}\n`;
+
+  const handleWhatsAppShare = async () => {
+    if (!receiptRef.current) return;
+
+    try {
+      setSharing(true);
+      const canvas = await captureReceiptCanvas(receiptRef.current);
+      const blob = await canvasToBlob(canvas, "image/png", 1.0);
+
+      if (!blob) throw new Error("Could not generate receipt image");
+
+      const fileName = `Receipt_${refValue || "Doc"}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+      const whatsappNumber = resolveWhatsAppNumber(partyPhone);
+
+      const canShareFiles =
+        typeof navigator !== "undefined" &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] });
+
+      if (canShareFiles) {
+        await navigator.share({
+          files: [file],
+          title,
+        });
+        toast.success("Receipt ready to share!");
+      } else {
+        const link = document.createElement("a");
+        link.download = fileName;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        const waUrl = `https://wa.me/${whatsappNumber}`;
+        window.open(waUrl, "_blank");
+
+        toast.info(
+          "Receipt image downloaded — attach it in the WhatsApp chat that just opened."
+        );
+      }
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        console.error(err);
+        toast.error("Failed to share receipt image");
+      }
+    } finally {
+      setSharing(false);
     }
-    text += `--------------------------\n`;
-    text += `*Total Amount:* Rs. ${totalAmount}\n`;
-    text += `*Paid Amount:* Rs. ${paidAmount}\n`;
-    text += `*Remaining Balance:* Rs. ${remainingAmount}\n`;
-    text += `*Status:* ${status.toUpperCase()}\n`;
-    text += `--------------------------\n`;
-    text += `_Thank you for your business!_`;
+  };
 
-    const cleanPhone = partyPhone.replace(/\D/g, "");
-    const waUrl = cleanPhone
-      ? `https://wa.me/${cleanPhone.startsWith("0") ? "92" + cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(text)}`
-      : `https://wa.me/?text=${encodeURIComponent(text)}`;
 
-    window.open(waUrl, "_blank");
+  const handleReceiptImageTap = async () => {
+    if (!mobileView || !receiptRef.current || downloading || sharing) return;
+
+    try {
+      setSharing(true);
+      const canvas = await captureReceiptCanvas(receiptRef.current);
+      const blob = await canvasToBlob(canvas, "image/png", 1.0);
+      if (!blob) throw new Error("Could not generate receipt image");
+
+      const fileName = `Receipt_${refValue || "Doc"}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+
+      const canShareFiles =
+        typeof navigator !== "undefined" &&
+        navigator.canShare &&
+        navigator.canShare({ files: [file] });
+
+      if (canShareFiles) {
+        await navigator.share({ files: [file], title });
+        return;
+      }
+
+      if (isIOS()) {
+        const dataUrl = canvas.toDataURL("image/png", 1.0);
+        const win = window.open();
+        if (win) {
+          win.document.write(
+            `<title>${fileName}</title><img src="${dataUrl}" style="width:100%;height:auto;" />`
+          );
+        }
+        toast.info("Long-press the image and choose “Add to Photos” to save it.");
+        return;
+      }
+
+      const link = document.createElement("a");
+      link.download = fileName;
+      link.href = URL.createObjectURL(blob);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      toast.success("Receipt image saved!");
+    } catch (err) {
+      if (err?.name !== "AbortError") {
+        console.error(err);
+        toast.error("Failed to save receipt image");
+      }
+    } finally {
+      setSharing(false);
+    }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth fullScreen={mobileView}>
       {/* Dialog Header Actions */}
       <DialogTitle
         sx={{
@@ -211,20 +392,22 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
           backgroundColor: colors["100"],
           borderBottom: `1px solid ${colors["300"]}`,
           padding: "12px 24px",
+          flexWrap: "wrap",
+          gap: "8px",
         }}
       >
         <Typography variant="h6" sx={{ fontWeight: "bold", color: colors["950"] }}>
           🧾 {title}
         </Typography>
 
-        <Box sx={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <Box sx={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
           <Tooltip title="Download PDF">
             <Button
               size="small"
               variant="contained"
               startIcon={<DownloadIcon />}
               onClick={handleDownloadPDF}
-              disabled={downloading}
+              disabled={downloading || sharing}
               sx={{ backgroundColor: colors["900"], textTransform: "none", fontWeight: "bold" }}
             >
               PDF
@@ -237,7 +420,7 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
               variant="outlined"
               startIcon={<ImageIcon />}
               onClick={handleDownloadImage}
-              disabled={downloading}
+              disabled={downloading || sharing}
               sx={{ textTransform: "none", fontWeight: "bold" }}
             >
               Image
@@ -251,6 +434,7 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
               color="success"
               startIcon={<WhatsAppIcon />}
               onClick={handleWhatsAppShare}
+              disabled={downloading || sharing}
               sx={{ textTransform: "none", fontWeight: "bold" }}
             >
               WhatsApp
@@ -265,7 +449,18 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
 
       {/* Printable Receipt Canvas */}
       <DialogContent sx={{ padding: "24px", backgroundColor: "#f8fafc" }}>
-        <Box ref={receiptRef} sx={styles.receiptWrapper}>
+        <Box
+          ref={receiptRef}
+          onClick={mobileView ? handleReceiptImageTap : undefined}
+          sx={{
+            ...styles.receiptWrapper,
+            // Avoid any container clipping the receipt during capture.
+            overflow: "visible",
+            height: "auto",
+            maxHeight: "none",
+            cursor: mobileView ? "pointer" : "default",
+          }}
+        >
           {/* Header */}
           <Box sx={styles.header}>
             <Box>
@@ -312,62 +507,142 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
             </Box>
           </Box>
 
-          {/* Itemized Table (For Sales & Stock) */}
+          {/* Item Details - For Sales & Stock */}
           {(type === "sale" || type === "stock") && (
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>Description / Item</th>
-                  <th>Quantity</th>
-                  <th>Weight (kg)</th>
-                  <th>Rate (Rs.)</th>
-                  <th>Bhardana</th>
-                  <th>Total (Rs.)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <strong>{data.itemName || "Commercial Goods"}</strong>
-                  </td>
-                  <td>{data.quantity || data.totalQuantity || "-"}</td>
-                  <td>{data.weight || data.totalWeight || "-"}</td>
-                  <td>Rs. {data.rate || data.purchaseRate || 0}</td>
-                  <td>Rs. {data.bhardana || 0}</td>
-                  <td>
-                    <strong>Rs. {totalAmount}</strong>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <Box sx={styles.itemList}>
+              <Typography sx={styles.sectionTitle}>
+                Item Details
+              </Typography>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Description / Item
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  {data.itemName || "Commercial Goods"}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Quantity
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  {data.quantity || data.totalQuantity || "-"}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Weight
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  {data.weight || data.totalWeight
+                    ? `${data.weight || data.totalWeight} kg`
+                    : "-"}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Rate
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  Rs. {data.rate || data.purchaseRate || 0}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Bhardana
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  Rs. {data.bhardana || 0}
+                </Typography>
+              </Box>
+
+              <Box
+                sx={{
+                  ...styles.itemRow,
+                  fontWeight: 900,
+                }}
+              >
+                <Typography
+                  sx={{
+                    ...styles.itemLabel,
+                    color: colors.primary,
+                  }}
+                >
+                  Total Amount
+                </Typography>
+
+                <Typography
+                  sx={{
+                    ...styles.itemValue,
+                    color: colors.primary,
+                    fontWeight: 900,
+                  }}
+                >
+                  Rs. {totalAmount}
+                </Typography>
+              </Box>
+            </Box>
           )}
 
-          {/* Details Table (For Payment & Bank) */}
+          {/* Transaction Details - For Payment & Bank */}
           {(type === "payment" || type === "bank") && (
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th>Transaction Particulars</th>
-                  <th>Payment Mode</th>
-                  <th>Reference</th>
-                  <th>Amount (Rs.)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <strong>{data.notes || title}</strong>
-                  </td>
-                  <td style={{ textTransform: "capitalize" }}>
-                    {paymentMethod?.replace("_", " ")}
-                  </td>
-                  <td>{refValue}</td>
-                  <td>
-                    <strong>Rs. {totalAmount}</strong>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <Box sx={styles.itemList}>
+              <Typography sx={styles.sectionTitle}>
+                Transaction Details
+              </Typography>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Particulars
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  {data.notes || title}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Payment Mode
+                </Typography>
+                <Typography
+                  sx={{
+                    ...styles.itemValue,
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {paymentMethod?.replace("_", " ")}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Reference
+                </Typography>
+                <Typography sx={styles.itemValue}>
+                  {refValue}
+                </Typography>
+              </Box>
+
+              <Box sx={styles.itemRow}>
+                <Typography sx={styles.itemLabel}>
+                  Amount
+                </Typography>
+                <Typography
+                  sx={{
+                    ...styles.itemValue,
+                    color: colors.primary,
+                    fontWeight: 900,
+                  }}
+                >
+                  Rs. {totalAmount}
+                </Typography>
+              </Box>
+            </Box>
           )}
 
           {/* Summary Box */}
@@ -404,6 +679,16 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
               <Typography sx={styles.signLabel}>Authorized Signature</Typography>
             </Box>
           </Box>
+
+          {mobileView && (
+            <Typography
+              variant="caption"
+              color="textSecondary"
+              sx={{ display: "block", textAlign: "center", mt: 1 }}
+            >
+              Tap the receipt to save it as an image
+            </Typography>
+          )}
         </Box>
       </DialogContent>
 

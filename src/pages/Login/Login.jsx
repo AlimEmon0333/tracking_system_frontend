@@ -5,11 +5,15 @@ import {
   Button,
   useMediaQuery,
   CircularProgress,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import { loginStyles } from "./loginStyles";
 import { Link } from "react-router-dom";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { SmallMobileView } from "../../styles/theme";
 import api from "../../api/axios";
 import { toast } from "react-toastify";
@@ -20,6 +24,7 @@ const Login = () => {
   const styles = loginStyles(mobileView);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -66,6 +71,12 @@ const Login = () => {
     }
   };
 
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
+  };
+
   useEffect(() => {
     const user = localStorage.getItem("user");
     if (user) {
@@ -100,6 +111,7 @@ const Login = () => {
               placeholder="name@company.com"
               value={form.email}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               error={!!errors.email}
               helperText={errors.email}
               fullWidth
@@ -107,13 +119,28 @@ const Login = () => {
             <TextField
               label="Password"
               name="password"
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="••••••••"
               value={form.password}
               onChange={handleChange}
+              onKeyDown={handleKeyDown}
               error={!!errors.password}
               helperText={errors.password}
               fullWidth
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      edge="end"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
           </Box>
 

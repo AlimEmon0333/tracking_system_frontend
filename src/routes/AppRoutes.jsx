@@ -6,6 +6,7 @@ import Dashboard from "../pages/Dashboard/Dashboard";
 import Parties from "../pages/Dashboard/Parties/Parties";
 import AddParty from "../pages/Dashboard/Parties/AddParty/AddParty";
 import EditParty from "../pages/Dashboard/Parties/EditParty/EditParty";
+import PartyDetails from "../pages/Dashboard/Parties/PartyDetails/PartyDetails";
 
 import AuthLayout from "../layouts/AuthLayout/AuthLayout";
 import AppLayout from "../layouts/AppLayout/AppLayout";
@@ -39,6 +40,7 @@ export default function AppRoutes() {
           <Route path="/parties" element={<Parties />} />
           <Route path="/parties/add" element={<AddParty />} />
           <Route path="/parties/edit/:id" element={<EditParty />} />
+          <Route path="/parties/:id" element={<PartyDetails />} />
           <Route path="/stocks/add" element={<AddStock />} />
           <Route path="/stocks/edit/:id" element={<EditStock />} />
           <Route path="/stocks/update/:id" element={<UpdateStock />} />
@@ -47,7 +49,6 @@ export default function AppRoutes() {
           <Route path="/createInvoice" element={<CreateInvoice />} />
           <Route path="/payments" element={<Payments />} />
           <Route path="/bank" element={<BankAccounts />} />
-
         </Route>
       </Route>
     </Routes>
