@@ -3,7 +3,6 @@ import {
   Button,
   FormControl,
   FormHelperText,
-  Grid,
   InputLabel,
   MenuItem,
   Select,
@@ -11,6 +10,11 @@ import {
   Typography,
   Box,
   CircularProgress,
+  IconButton,
+  Tooltip,
+  Paper,
+  Divider,
+  Chip,
 } from "@mui/material";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -21,115 +25,152 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import ReceiptIcon from "@mui/icons-material/Receipt";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import DeleteIcon from "@mui/icons-material/Delete";
+import InventoryIcon from "@mui/icons-material/Inventory";
 
 import api from "../../../../api/axios";
 import { addStockStyle } from "./addStockStyles";
+import { colors, borderRadius, shadows } from "../../../../styles/theme";
+
+const createEmptyItem = () => ({
+  id: Date.now() + Math.random(),
+  itemName: "",
+  totalQuantity: "",
+  weightPerKatta: "",
+  totalWeight: "",
+  purchaseRate: "",
+  bhardanaRate: "",
+});
 
 const AddStock = () => {
   const styles = addStockStyle();
   const navigate = useNavigate();
 
   const [millers, setMillers] = useState([]);
-  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const [form, setForm] = useState({
-    date: dayjs(),
-    millerId: "",
-    itemName: "",
-    totalQuantity: "",
-    weightPerKatta: "",
-    totalWeight: "",
-    purchaseRate: "",
-    totalAmount: "",
-    remainingAmount: "",
-    bhardanaRate: "",
-    bhardana: "",
-    paymentType: "cash",
-    status: "unpaid",
-    paidAmount: "",
-    dueDays: "",
-  });
+  // Bill-level common settings
+  const [billDate, setBillDate] = useState(dayjs());
+  const [millerId, setMillerId] = useState("");
+  const [paymentType, setPaymentType] = useState("cash");
+  const [status, setStatus] = useState("unpaid");
+  const [paidAmount, setPaidAmount] = useState("");
+  const [dueDays, setDueDays] = useState("");
+
+  // Multi-item list
+  const [items, setItems] = useState([createEmptyItem()]);
 
   const fetchMillers = async () => {
     try {
       const { data } = await api.get("/stock/millers");
-      setMillers(data.data);
+      setMillers(data.data || []);
     } catch (error) {
       toast.error("Failed to load millers");
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  useEffect(() => {
+    fetchMillers();
+  }, []);
 
-    setForm((prev) => {
-      const updatedForm = { ...prev, [name]: value };
+  // Update item field
+  const handleItemChange = (index, field, value) => {
+    setItems((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index], [field]: value };
 
-      if (name === "totalQuantity" || name === "weightPerKatta") {
-        updatedForm.totalWeight =
-          Number(updatedForm.totalQuantity || 0) * Number(updatedForm.weightPerKatta || 0);
+      if (field === "totalQuantity" || field === "weightPerKatta") {
+        const qty = field === "totalQuantity" ? Number(value || 0) : Number(item.totalQuantity || 0);
+        const wpk = field === "weightPerKatta" ? Number(value || 0) : Number(item.weightPerKatta || 0);
+        item.totalWeight = qty * wpk || "";
       }
 
-      return updatedForm;
+      updated[index] = item;
+      return updated;
     });
 
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
+    if (errors[`item_${index}_${field}`]) {
+      setErrors((prev) => ({ ...prev, [`item_${index}_${field}`]: "" }));
     }
   };
 
-  const purchaseAmount = Number(form.totalWeight || 0) * Number(form.purchaseRate || 0);
-  const totalBhardana = Number(form.totalQuantity || 0) * Number(form.bhardanaRate || 0);
-  const totalAmount = purchaseAmount + totalBhardana;
+  const handleAddItem = () => {
+    setItems((prev) => [...prev, createEmptyItem()]);
+  };
 
-  const remainingQuantity = Number(form.totalQuantity || 0);
-  const remainingWeight = Number(form.totalWeight || 0);
+  const handleRemoveItem = (index) => {
+    if (items.length <= 1) {
+      toast.warning("A purchase bill must have at least one stock item");
+      return;
+    }
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Calculations for all items
+  const calculatedItems = items.map((it) => {
+    const qty = Number(it.totalQuantity || 0);
+    const wpk = Number(it.weightPerKatta || 0);
+    const weight = Number(it.totalWeight || qty * wpk);
+    const rate = Number(it.purchaseRate || 0);
+    const bhardanaRate = Number(it.bhardanaRate || 0);
+    const grossAmount = weight * rate;
+    const bhardana = qty * bhardanaRate;
+    const totalAmount = grossAmount + bhardana;
+
+    return {
+      ...it,
+      calcWeight: weight,
+      grossAmount,
+      bhardana,
+      totalAmount,
+    };
+  });
+
+  const totalBillQuantity = calculatedItems.reduce((sum, it) => sum + Number(it.totalQuantity || 0), 0);
+  const totalBillWeight = calculatedItems.reduce((sum, it) => sum + it.calcWeight, 0);
+  const totalBillGross = calculatedItems.reduce((sum, it) => sum + it.grossAmount, 0);
+  const totalBillBhardana = calculatedItems.reduce((sum, it) => sum + it.bhardana, 0);
+  const totalBillAmount = totalBillGross + totalBillBhardana;
 
   const remainingAmount =
-    form.status === "paid"
+    status === "paid"
       ? 0
-      : form.status === "partial"
-        ? totalAmount - Number(form.paidAmount || 0)
-        : totalAmount;
+      : status === "partial"
+      ? Math.max(0, totalBillAmount - Number(paidAmount || 0))
+      : totalBillAmount;
 
+  // Validation
   const validate = () => {
     let temp = {};
 
-    if (!form.date) temp.date = "Date is required";
-    if (!form.millerId) temp.millerId = "Select Miller";
-    if (!form.itemName.trim()) temp.itemName = "Item name is required";
+    if (!billDate) temp.date = "Purchase date is required";
+    if (!millerId) temp.millerId = "Select Miller (Supplier)";
 
-    if (!form.totalQuantity) {
-      temp.totalQuantity = "Enter Quantity";
-    } else if (Number(form.totalQuantity) <= 0) {
-      temp.totalQuantity = "Quantity must be > 0";
-    }
+    items.forEach((it, index) => {
+      if (!it.itemName?.trim()) temp[`item_${index}_itemName`] = "Item name is required";
+      if (!it.totalQuantity || Number(it.totalQuantity) <= 0) {
+        temp[`item_${index}_totalQuantity`] = "Quantity must be > 0";
+      }
+      if (!it.weightPerKatta || Number(it.weightPerKatta) <= 0) {
+        temp[`item_${index}_weightPerKatta`] = "Weight must be > 0";
+      }
+      if (!it.purchaseRate || Number(it.purchaseRate) <= 0) {
+        temp[`item_${index}_purchaseRate`] = "Rate must be > 0";
+      }
+    });
 
-    if (!form.weightPerKatta) {
-      temp.weightPerKatta = "Enter weight";
-    } else if (Number(form.weightPerKatta) <= 0) {
-      temp.weightPerKatta = "Weight must be > 0";
-    }
-
-    if (!form.purchaseRate) {
-      temp.purchaseRate = "Enter purchase rate";
-    } else if (Number(form.purchaseRate) <= 0) {
-      temp.purchaseRate = "Rate must be > 0";
-    }
-
-    if (!form.status) temp.status = "Select status";
-
-    if (form.status === "partial") {
-      if (!form.paidAmount || Number(form.paidAmount) <= 0) {
+    if (status === "partial") {
+      if (!paidAmount || Number(paidAmount) <= 0) {
         temp.paidAmount = "Enter Paid Amount";
-      } else if (Number(form.paidAmount) >= totalAmount) {
+      } else if (Number(paidAmount) >= totalBillAmount) {
         temp.paidAmount = "Must be less than Total Amount";
       }
     }
 
-    if (form.paymentType === "udhar") {
-      if (!form.dueDays || Number(form.dueDays) <= 0) {
+    if (paymentType === "udhar") {
+      if (!dueDays || Number(dueDays) <= 0) {
         temp.dueDays = "Enter valid Due Days";
       }
     }
@@ -140,34 +181,44 @@ const AddStock = () => {
 
   const handleSubmit = async () => {
     if (!validate()) {
-      toast.warning("Please fix the errors in the form");
+      toast.warning("Please fill all required item details");
       return;
     }
 
     try {
       setLoading(true);
-      await api.post("/stock", {
-        ...form,
-        date: form.date.toDate(),
-        totalAmount,
-        bhardana: totalBhardana,
-        remainingAmount,
-        remainingQuantity,
-        remainingWeight,
+
+      const payloadItems = calculatedItems.map((it) => ({
+        itemName: it.itemName.trim(),
+        totalQuantity: Number(it.totalQuantity),
+        weightPerKatta: Number(it.weightPerKatta),
+        totalWeight: it.calcWeight,
+        purchaseRate: Number(it.purchaseRate),
+        bhardanaRate: Number(it.bhardanaRate || 0),
+        bhardana: it.bhardana,
+        totalAmount: it.totalAmount,
+        remainingQuantity: Number(it.totalQuantity),
+        remainingWeight: it.calcWeight,
+      }));
+
+      const res = await api.post("/stock", {
+        date: billDate.toDate(),
+        millerId,
+        paymentType,
+        status,
+        dueDays: Number(dueDays || 0),
+        paidAmount: status === "paid" ? totalBillAmount : Number(paidAmount || 0),
+        items: payloadItems,
       });
 
-      toast.success("Stock added successfully");
+      toast.success(res.data?.message || "Stock items purchased successfully!");
       setTimeout(() => navigate("/stocks"), 1000);
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to add stock");
+      toast.error(error.response?.data?.message || "Failed to add stock purchase");
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    fetchMillers();
-  }, []);
 
   return (
     <Box sx={styles.container}>
@@ -176,202 +227,350 @@ const AddStock = () => {
           <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/stocks")}>
             Back
           </Button>
-          <Typography sx={styles.heading}>Add New Stock</Typography>
+          <Box>
+            <Typography sx={styles.heading}>Add Stock Purchase</Typography>
+            <Typography variant="body2" color="textSecondary">
+              Purchase single or multiple stock items in a single purchase receipt
+            </Typography>
+          </Box>
         </Box>
       </Box>
 
       <Box sx={styles.formLayout}>
-        {/* Left Side: Form Details */}
+        {/* Left Side: Supplier & Multiple Items */}
         <Box sx={styles.formSection}>
-          <Typography sx={styles.sectionTitle}>1. Supplier & Item Details</Typography>
+          <Typography sx={styles.sectionTitle}>1. Supplier & Purchase Date</Typography>
 
           <Box sx={styles.gridRow}>
             <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DemoContainer components={["DatePicker"]} sx={{paddingTop:0}}>
+              <DemoContainer components={["DatePicker"]} sx={{ paddingTop: 0 }}>
                 <DatePicker
-                  // label="Purchase Date"
-                  value={form.date}
+                  value={billDate}
                   onChange={(date) => {
-                    setForm({ ...form, date });
+                    setBillDate(date);
                     if (errors.date) setErrors({ ...errors, date: "" });
                   }}
-                  slotProps={{ textField: { fullWidth: true, error: !!errors.date, helperText: errors.date } }}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      error: !!errors.date,
+                      helperText: errors.date,
+                    },
+                  }}
                 />
               </DemoContainer>
             </LocalizationProvider>
 
-            <FormControl error={!!errors.millerId} fullWidth >
+            <FormControl error={!!errors.millerId} fullWidth>
               <InputLabel>Select Miller (Supplier)</InputLabel>
-              <Select name="millerId" value={form.millerId} onChange={handleChange} label="Select Miller (Supplier)">
+              <Select
+                value={millerId}
+                onChange={(e) => {
+                  setMillerId(e.target.value);
+                  if (errors.millerId) setErrors({ ...errors, millerId: "" });
+                }}
+                label="Select Miller (Supplier)"
+              >
                 {millers.map((m) => (
-                  <MenuItem key={m._id} value={m._id}>{m.name}</MenuItem>
+                  <MenuItem key={m._id} value={m._id}>
+                    {m.name}
+                  </MenuItem>
                 ))}
               </Select>
               {errors.millerId && <FormHelperText>{errors.millerId}</FormHelperText>}
             </FormControl>
           </Box>
 
-          <TextField
-            label="Item Name"
-            name="itemName"
-            value={form.itemName}
-            onChange={handleChange}
-            error={!!errors.itemName}
-            helperText={errors.itemName}
-            fullWidth
-          />
-
-          <Box sx={styles.gridRow}>
-            <TextField
-              label="Total Quantity (Kattas)"
-              name="totalQuantity"
-              value={form.totalQuantity}
-              onChange={handleChange}
-              error={!!errors.totalQuantity}
-              helperText={errors.totalQuantity}
-              type="number"
-              fullWidth
-            />
-            <TextField
-              label="Weight per Katta (kg)"
-              name="weightPerKatta"
-              value={form.weightPerKatta}
-              onChange={handleChange}
-              error={!!errors.weightPerKatta}
-              helperText={errors.weightPerKatta}
-              type="number"
-              fullWidth
-            />
+          {/* Section 2: Multiple Stock Items */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1, mb: 1 }}>
+            <Typography sx={{ ...styles.sectionTitle, mb: 0, borderBottom: "none", pb: 0 }}>
+              2. Stock Items ({items.length})
+            </Typography>
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
+              startIcon={<AddCircleIcon />}
+              onClick={handleAddItem}
+              sx={{ textTransform: "none", fontWeight: 700 }}
+            >
+              + Add Another Item
+            </Button>
           </Box>
 
-          <Box sx={styles.gridRow}>
-            <TextField
-              label="Purchase Rate (Rs per kg)"
-              name="purchaseRate"
-              value={form.purchaseRate}
-              onChange={handleChange}
-              error={!!errors.purchaseRate}
-              helperText={errors.purchaseRate}
-              type="number"
-              fullWidth
-            />
-            <TextField
-              label="Calculated Weight (kg)"
-              name="totalWeight"
-              value={form.totalWeight}
-              InputProps={{ readOnly: true }}
-              helperText="Auto-calculated (Qty × Weight/Katta)"
-              type="number"
-              fullWidth
-            />
-          </Box>
+          {items.map((item, index) => {
+            const itemCalc = calculatedItems[index] || {};
 
-          <TextField
-            label="Bhardana Rate (Optional)"
-            name="bhardanaRate"
-            value={form.bhardanaRate}
-            onChange={handleChange}
-            error={!!errors.bhardanaRate}
-            helperText={errors.bhardanaRate}
-            type="number"
+            return (
+              <Paper
+                key={item.id}
+                sx={{
+                  p: 2.5,
+                  mb: 2,
+                  borderRadius: borderRadius.md,
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: "#FAFAFA",
+                  position: "relative",
+                }}
+              >
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <Chip
+                      label={`Item #${index + 1}`}
+                      size="small"
+                      sx={{
+                        backgroundColor: colors.secondary,
+                        color: "#fff",
+                        fontWeight: 700,
+                        fontSize: "11px",
+                      }}
+                    />
+                    {item.itemName && (
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {item.itemName}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  {items.length > 1 && (
+                    <Tooltip title="Remove this item">
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleRemoveItem(index)}
+                        sx={{ bgcolor: colors.errorLight }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Box>
+
+                <TextField
+                  label="Item Name / Variety (e.g. Super Basmati Rice)"
+                  value={item.itemName}
+                  onChange={(e) => handleItemChange(index, "itemName", e.target.value)}
+                  error={!!errors[`item_${index}_itemName`]}
+                  helperText={errors[`item_${index}_itemName`]}
+                  fullWidth
+                  sx={{ mb: 2 }}
+                />
+
+                <Box sx={styles.gridRow}>
+                  <TextField
+                    label="Total Quantity (Kattas)"
+                    type="number"
+                    value={item.totalQuantity}
+                    onChange={(e) => handleItemChange(index, "totalQuantity", e.target.value)}
+                    error={!!errors[`item_${index}_totalQuantity`]}
+                    helperText={errors[`item_${index}_totalQuantity`]}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Weight per Katta (kg)"
+                    type="number"
+                    value={item.weightPerKatta}
+                    onChange={(e) => handleItemChange(index, "weightPerKatta", e.target.value)}
+                    error={!!errors[`item_${index}_weightPerKatta`]}
+                    helperText={errors[`item_${index}_weightPerKatta`]}
+                    fullWidth
+                  />
+                </Box>
+
+                <Box sx={{ ...styles.gridRow, mt: 2 }}>
+                  <TextField
+                    label="Purchase Rate (Rs per kg)"
+                    type="number"
+                    value={item.purchaseRate}
+                    onChange={(e) => handleItemChange(index, "purchaseRate", e.target.value)}
+                    error={!!errors[`item_${index}_purchaseRate`]}
+                    helperText={errors[`item_${index}_purchaseRate`]}
+                    fullWidth
+                  />
+                  <TextField
+                    label="Calculated Weight (kg)"
+                    type="number"
+                    value={item.totalWeight}
+                    onChange={(e) => handleItemChange(index, "totalWeight", e.target.value)}
+                    helperText="Calculated weight (auto or manual)"
+                    fullWidth
+                  />
+                </Box>
+
+                <Box sx={{ ...styles.gridRow, mt: 2 }}>
+                  <TextField
+                    label="Bhardana Rate (Optional Rs/Katta)"
+                    type="number"
+                    value={item.bhardanaRate}
+                    onChange={(e) => handleItemChange(index, "bhardanaRate", e.target.value)}
+                    fullWidth
+                  />
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      px: 2,
+                      py: 1,
+                      bgcolor: "#EFF6FF",
+                      borderRadius: borderRadius.sm,
+                      border: "1px dashed #BFDBFE",
+                    }}
+                  >
+                    <Typography variant="body2" color="textSecondary">
+                      Item Total:
+                    </Typography>
+                    <Typography variant="subtitle1" fontWeight={800} color={colors.primary}>
+                      Rs. {(itemCalc.totalAmount || 0).toLocaleString()}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Paper>
+            );
+          })}
+
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<AddCircleIcon />}
+            onClick={handleAddItem}
+            sx={{ textTransform: "none", fontWeight: 700, py: 1, mb: 3 }}
             fullWidth
-          />
+          >
+            + Add Another Stock Item to This Receipt
+          </Button>
 
-          <Typography sx={styles.sectionTitle} mt={2}>2. Payment Details</Typography>
+          {/* Section 3: Payment Details */}
+          <Typography sx={styles.sectionTitle} mt={1}>
+            3. Payment Details
+          </Typography>
 
           <Box sx={styles.gridRow}>
             <FormControl fullWidth>
               <InputLabel>Payment Type</InputLabel>
-              <Select name="paymentType" value={form.paymentType} onChange={handleChange} label="Payment Type">
+              <Select
+                value={paymentType}
+                onChange={(e) => setPaymentType(e.target.value)}
+                label="Payment Type"
+              >
                 <MenuItem value="cash">Cash / Bank Transfer</MenuItem>
                 <MenuItem value="udhar">Udhar (Credit)</MenuItem>
               </Select>
             </FormControl>
 
-            <FormControl error={!!errors.status} fullWidth>
+            <FormControl fullWidth>
               <InputLabel>Payment Status</InputLabel>
-              <Select name="status" value={form.status} onChange={handleChange} label="Payment Status">
+              <Select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                label="Payment Status"
+              >
                 <MenuItem value="paid">Fully Paid</MenuItem>
                 <MenuItem value="partial">Partial Payment</MenuItem>
                 <MenuItem value="unpaid">Unpaid</MenuItem>
               </Select>
-              {errors.status && <FormHelperText>{errors.status}</FormHelperText>}
             </FormControl>
           </Box>
 
           <Box sx={styles.gridRow}>
-            {form.paymentType === "udhar" && (
+            {paymentType === "udhar" && (
               <TextField
                 label="Due In (Days)"
-                name="dueDays"
-                value={form.dueDays}
-                onChange={handleChange}
+                type="number"
+                value={dueDays}
+                onChange={(e) => setDueDays(e.target.value)}
                 error={!!errors.dueDays}
                 helperText={errors.dueDays}
-                type="number"
                 fullWidth
               />
             )}
 
-            {form.status === "partial" && (
+            {status === "partial" && (
               <TextField
                 label="Paid Amount (Rs)"
-                name="paidAmount"
-                value={form.paidAmount}
-                onChange={handleChange}
+                type="number"
+                value={paidAmount}
+                onChange={(e) => setPaidAmount(e.target.value)}
                 error={!!errors.paidAmount}
                 helperText={errors.paidAmount}
-                type="number"
                 fullWidth
               />
             )}
           </Box>
         </Box>
 
-        {/* Right Side: Live Receipt Summary */}
+        {/* Right Side: Live Combined Purchase Receipt Summary */}
         <Box sx={styles.summarySection}>
           <Typography sx={styles.summaryTitle}>
-            <ReceiptIcon color="secondary" /> Purchase Summary
+            <ReceiptIcon color="secondary" /> Purchase Receipt Summary
           </Typography>
+
+          {/* Line items preview */}
+          <Box sx={{ mb: 1 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: colors.textSecondary, textTransform: "uppercase" }}>
+              Items on Receipt ({items.length})
+            </Typography>
+            {calculatedItems.map((it, idx) => (
+              <Box
+                key={it.id}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontSize: "13px",
+                  py: 0.5,
+                  borderBottom: `1px solid ${colors.border}`,
+                }}
+              >
+                <Typography variant="caption" sx={{ fontWeight: 600, color: colors.textPrimary }}>
+                  {it.itemName || `Item #${idx + 1}`} ({it.totalQuantity || 0} Katte)
+                </Typography>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: colors.secondary }}>
+                  Rs. {it.totalAmount.toLocaleString()}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
 
           <Box sx={styles.billSummaryDetails}>
             <Box sx={styles.billSummaryDetail}>
-              <Typography>Total Items</Typography>
-              <Typography sx={styles.detailValue}>{form.totalQuantity || 0} Qty</Typography>
+              <Typography>Total Items / Kattas</Typography>
+              <Typography sx={styles.detailValue}>{totalBillQuantity} Kattas</Typography>
             </Box>
             <Box sx={styles.billSummaryDetail}>
-              <Typography>Total Weight</Typography>
-              <Typography sx={styles.detailValue}>{form.totalWeight || 0} kg</Typography>
-            </Box>
-            <Box sx={styles.billSummaryDetail}>
-              <Typography>Purchase Rate</Typography>
-              <Typography sx={styles.detailValue}>Rs. {form.purchaseRate || 0} / kg</Typography>
+              <Typography>Total Net Weight</Typography>
+              <Typography sx={styles.detailValue}>{totalBillWeight.toLocaleString()} kg</Typography>
             </Box>
             <Box sx={styles.billSummaryDetail}>
               <Typography>Gross Amount</Typography>
-              <Typography sx={styles.detailValue}>Rs. {purchaseAmount.toLocaleString()}</Typography>
+              <Typography sx={styles.detailValue}>Rs. {totalBillGross.toLocaleString()}</Typography>
             </Box>
             <Box sx={styles.billSummaryDetail}>
-              <Typography>Bhardana Charges</Typography>
-              <Typography sx={styles.detailValue}>+ Rs. {totalBhardana.toLocaleString()}</Typography>
+              <Typography>Total Bhardana</Typography>
+              <Typography sx={styles.detailValue}>+ Rs. {totalBillBhardana.toLocaleString()}</Typography>
             </Box>
 
             <Box sx={styles.totalRow}>
               <Typography variant="h6">Total Payable</Typography>
-              <Typography variant="h6">Rs. {totalAmount.toLocaleString()}</Typography>
+              <Typography variant="h6">Rs. {totalBillAmount.toLocaleString()}</Typography>
             </Box>
 
-            {form.status === "partial" && (
-              <Box sx={{ ...styles.billSummaryDetail, borderBottom: 'none', mt: 1 }}>
+            {status === "partial" && (
+              <Box sx={{ ...styles.billSummaryDetail, borderBottom: "none", mt: 1 }}>
                 <Typography color="success.main">Paid Amount</Typography>
-                <Typography sx={{ ...styles.detailValue, color: 'success.main' }}>- Rs. {Number(form.paidAmount || 0).toLocaleString()}</Typography>
+                <Typography sx={{ ...styles.detailValue, color: "success.main" }}>
+                  - Rs. {Number(paidAmount || 0).toLocaleString()}
+                </Typography>
               </Box>
             )}
 
-            {(form.status === "partial" || form.status === "unpaid") && (
-              <Box sx={{ ...styles.totalRow, borderTop: 'none', paddingTop: 0, marginTop: 0, color: 'text.primary' }}>
-                <Typography variant="subtitle1" fontWeight={600}>Remaining Balance</Typography>
-                <Typography variant="subtitle1" fontWeight={700} color="error.main">Rs. {remainingAmount.toLocaleString()}</Typography>
+            {(status === "partial" || status === "unpaid") && (
+              <Box sx={{ ...styles.totalRow, borderTop: "none", paddingTop: 0, marginTop: 0 }}>
+                <Typography variant="subtitle1" fontWeight={600}>
+                  Remaining Balance
+                </Typography>
+                <Typography variant="subtitle1" fontWeight={700} color="error.main">
+                  Rs. {remainingAmount.toLocaleString()}
+                </Typography>
               </Box>
             )}
           </Box>
@@ -384,7 +583,7 @@ const AddStock = () => {
             disabled={loading}
             fullWidth
           >
-            {loading ? <CircularProgress size={24} color="inherit" /> : "Save & Add Stock"}
+            {loading ? <CircularProgress size={24} color="inherit" /> : `Save & Purchase (${items.length} Items)`}
           </Button>
         </Box>
       </Box>

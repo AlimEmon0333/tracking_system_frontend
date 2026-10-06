@@ -35,9 +35,11 @@ import { useNavigate } from "react-router-dom";
 
 import api from "../../../api/axios";
 import { colors } from "../../../styles/theme";
-import { SalesStyles } from "./salesStyle";
 import RecordPaymentModal from "../Payments/RecordPaymentModal";
 import ReceiptModal from "../../../components/ReceiptModal/ReceiptModal";
+import TransactionDetailsModal from "../../../components/TransactionModal/TransactionDetailsModal";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { SalesStyles } from "./SalesStyle";
 
 const Sales = () => {
   const styles = SalesStyles();
@@ -62,6 +64,25 @@ const Sales = () => {
   // Receipt Modal State
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+
+  // Transaction Details Modal State
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedSale, setSelectedSale] = useState(null);
+
+  const handleOpenDetails = (sale) => {
+    setSelectedSale(sale);
+    setDetailModalOpen(true);
+  };
+
+  const handleOpenReceipt = async (sale) => {
+    try {
+      const res = await api.get(`/sales/${sale._id}`);
+      setReceiptData(res.data.data);
+    } catch {
+      setReceiptData(sale);
+    }
+    setReceiptOpen(true);
+  };
 
   const fetchSales = async () => {
     try {
@@ -326,22 +347,75 @@ const Sales = () => {
                 const remaining = Number(sale.remainingAmount || 0);
 
                 return (
-                  <TableRow key={sale._id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>#{sale.billNumber}</TableCell>
+                  <TableRow
+                    key={sale._id}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => handleOpenDetails(sale)}
+                  >
+                    <TableCell>
+                      <Chip
+                        icon={<ReceiptLongIcon style={{ fontSize: "14px", color: colors.primary }} />}
+                        label={`#${sale.billNumber}`}
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDetails(sale);
+                        }}
+                        sx={{
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          bgcolor: colors.infoLight,
+                          color: colors.primary,
+                          "&:hover": { bgcolor: "#BFDBFE" },
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>{date}</Typography>
                         <Box mt={0.5}>{renderDueDate(sale)}</Box>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 500 }}>
-                      {sale.buyerId?.name || "N/A"}
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      {sale.buyerId ? (
+                        <Typography
+                          variant="body2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/parties/${sale.buyerId._id || sale.buyerId}`);
+                          }}
+                          sx={{
+                            fontWeight: 600,
+                            color: colors.primary,
+                            cursor: "pointer",
+                            "&:hover": { textDecoration: "underline" },
+                          }}
+                        >
+                          {sale.buyerId?.name}
+                        </Typography>
+                      ) : (
+                        "N/A"
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2">{sale.itemName}</Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        {sale.weight} kg @ Rs.{sale.rate}
-                      </Typography>
+                      <Typography variant="body2" fontWeight={700}>{sale.itemName}</Typography>
+                      <Box sx={{ display: "flex", gap: 0.8, alignItems: "center", mt: 0.5, flexWrap: "wrap" }}>
+                        <Chip
+                          label={`Sold: ${sale.quantity} Katte`}
+                          size="small"
+                          sx={{
+                            backgroundColor: colors.infoLight,
+                            color: colors.infoDark,
+                            fontWeight: 700,
+                            fontSize: "11px",
+                            height: "22px",
+                          }}
+                        />
+                        <Typography variant="caption" color="textSecondary">
+                          {sale.weight} kg @ Rs.{sale.rate}
+                        </Typography>
+                      </Box>
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>
                       Rs. {sale.totalAmount?.toLocaleString()}
@@ -355,8 +429,18 @@ const Sales = () => {
                       Rs. {remaining?.toLocaleString()}
                     </TableCell>
                     <TableCell>{renderStatus(sale.status)}</TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.8 }}>
+                        <Tooltip title="View Invoice & Traceability Details">
+                          <IconButton
+                            size="small"
+                            sx={{ color: colors.primary, bgcolor: colors.surfaceMuted }}
+                            onClick={() => handleOpenDetails(sale)}
+                          >
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
                         {remaining > 0 && (
                           <Tooltip title="Collect Payment">
                             <IconButton
@@ -372,10 +456,7 @@ const Sales = () => {
                           <IconButton
                             size="small"
                             sx={{ color: colors.primary, bgcolor: colors.infoLight }}
-                            onClick={() => {
-                              setReceiptData(sale);
-                              setReceiptOpen(true);
-                            }}
+                            onClick={() => handleOpenReceipt(sale)}
                           >
                             <ReceiptLongIcon fontSize="small" />
                           </IconButton>
@@ -435,6 +516,26 @@ const Sales = () => {
         }}
         data={receiptData}
         type="sale"
+      />
+
+      {/* Transaction Details Modal */}
+      <TransactionDetailsModal
+        open={detailModalOpen}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setSelectedSale(null);
+        }}
+        initialData={selectedSale}
+        transactionId={selectedSale?._id}
+        type="sale"
+        onRecordPayment={(sl) => {
+          setDetailModalOpen(false);
+          handleCollectPayment(sl);
+        }}
+        onOpenReceipt={(sl) => {
+          setReceiptData(sl);
+          setReceiptOpen(true);
+        }}
       />
     </Box>
   );

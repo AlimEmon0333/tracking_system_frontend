@@ -55,3 +55,10 @@ body {
     display: none;
   }
 }
+ .route-loader {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  font-family: Roboto, Arial, sans-serif;
+}

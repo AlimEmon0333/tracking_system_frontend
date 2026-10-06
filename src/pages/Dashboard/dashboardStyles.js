@@ -88,11 +88,12 @@ export const dashboardStyles = () => ({
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+      
   },
   tableContainer: {
     borderRadius: borderRadius.md,
     overflow: "auto",
     border: `1px solid ${colors.border}`,
-    marginTop: "16px",
+    marginTop: "16px",  
   },
 });

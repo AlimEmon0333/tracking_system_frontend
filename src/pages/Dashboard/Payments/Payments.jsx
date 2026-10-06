@@ -34,15 +34,21 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import PaymentIcon from "@mui/icons-material/Payment";
 import PointOfSaleIcon from "@mui/icons-material/PointOfSale";
 import SearchIcon from "@mui/icons-material/Search";
+import BoltIcon from "@mui/icons-material/Bolt";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
 
 import api from "../../../api/axios";
 import { colors } from "../../../styles/theme";
 import { paymentsStyles } from "./paymentsStyle";
 import RecordPaymentModal from "./RecordPaymentModal";
 import ReceiptModal from "../../../components/ReceiptModal/ReceiptModal";
+import TransactionDetailsModal from "../../../components/TransactionModal/TransactionDetailsModal";
+import AutoAllocateModal from "../../../components/AutoAllocateModal/AutoAllocateModal";
 
 const Payments = () => {
+  const navigate = useNavigate();
   const styles = paymentsStyles();
 
   const [activeTab, setActiveTab] = useState(0);
@@ -66,6 +72,31 @@ const Payments = () => {
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
   const [receiptType, setReceiptType] = useState("payment");
+
+  // Transaction Details Modal State
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedTx, setSelectedTx] = useState(null);
+  const [selectedTxType, setSelectedTxType] = useState("sale");
+
+  // Auto Allocate Modal State
+  const [autoAllocateOpen, setAutoAllocateOpen] = useState(false);
+  const [selectedPartyForAllocate, setSelectedPartyForAllocate] = useState(null);
+  const [partyPickerOpen, setPartyPickerOpen] = useState(false);
+
+  const handleOpenTransactionDetails = (tx, type) => {
+    setSelectedTx(tx);
+    setSelectedTxType(type);
+    setDetailModalOpen(true);
+  };
+
+  const handleStartAutoAllocate = (partyObj) => {
+    if (partyObj) {
+      setSelectedPartyForAllocate(partyObj);
+      setAutoAllocateOpen(true);
+    } else {
+      setPartyPickerOpen(true);
+    }
+  };
 
   const fetchDashboardAndHistory = async () => {
     try {

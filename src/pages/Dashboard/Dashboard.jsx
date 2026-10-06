@@ -117,31 +117,6 @@ const Dashboard = () => {
             Overview of your sales, purchases, and cashflow
           </Typography>
         </Box>
-        <Box sx={styles.quickActions}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate("/createInvoice")}
-            startIcon={<PointOfSaleIcon />}
-          >
-            Create Invoice
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            onClick={() => navigate("/stocks/add")}
-            startIcon={<InventoryIcon />}
-          >
-            Add Stock
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() => navigate("/bank")}
-            startIcon={<AccountBalanceWalletIcon />}
-          >
-            Bank
-          </Button>
-        </Box>
       </Box>
 
       {/* KPI Metric Cards */}
@@ -176,9 +151,6 @@ const Dashboard = () => {
           <Typography sx={{ ...styles.metricValue, color: "#7E22CE" }}>
             Rs. {summary.totalStockAmount?.toLocaleString() || 0}
           </Typography>
-          <Typography variant="caption" color="textSecondary">
-            Purchased Stock Value
-          </Typography>
         </Paper>
 
         {/* Customer Receivables */}
@@ -189,11 +161,6 @@ const Dashboard = () => {
           </Box>
           <Typography sx={{ ...styles.metricValue, color: colors.warningDark }}>
             Rs. {summary.totalReceivables?.toLocaleString() || 0}
-          </Typography>
-          <Typography variant="caption" sx={{ color: summary.overdueReceivablesCount > 0 ? colors.error : colors.successDark, fontWeight: 600 }}>
-            {summary.overdueReceivablesCount > 0
-              ? `🚨 ${summary.overdueReceivablesCount} Overdue (Rs. ${summary.overdueReceivablesAmount?.toLocaleString()})`
-              : "✅ No overdue customer dues"}
           </Typography>
         </Paper>
 
@@ -206,11 +173,6 @@ const Dashboard = () => {
           <Typography sx={{ ...styles.metricValue, color: colors.errorDark }}>
             Rs. {summary.totalPayables?.toLocaleString() || 0}
           </Typography>
-          <Typography variant="caption" sx={{ color: summary.overduePayablesCount > 0 ? colors.error : colors.successDark, fontWeight: 600 }}>
-            {summary.overduePayablesCount > 0
-              ? `🚨 ${summary.overduePayablesCount} Overdue (Rs. ${summary.overduePayablesAmount?.toLocaleString()})`
-              : "✅ No overdue supplier dues"}
-          </Typography>
         </Paper>
 
         {/* Total Inflow Collected */}
@@ -222,18 +184,16 @@ const Dashboard = () => {
           <Typography sx={{ ...styles.metricValue, color: colors.successDark }}>
             Rs. {summary.totalReceived?.toLocaleString() || 0}
           </Typography>
-          <Typography variant="caption" color="textSecondary">
-            Paid to suppliers: Rs. {summary.totalPaid?.toLocaleString() || 0}
-          </Typography>
         </Paper>
       </Box>
 
       {/* Urgent Attention / Overdue Balances Section */}
       {(overdueReceivables.length > 0 || overduePayables.length > 0) && (
         <Paper sx={{ ...styles.cardPanel, border: `1px solid ${colors.errorLight}` }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+
+          <Grid container sx={{ marginBottom: "16px", justifyContent: "space-between" }}>
             <Typography sx={{ ...styles.sectionTitle, color: colors.error }}>
-              <WarningAmberIcon color="error" /> Action Required: Overdue Payments
+              <WarningAmberIcon color="error" /> Overdue Payments
             </Typography>
             <Button
               size="small"
@@ -242,101 +202,130 @@ const Dashboard = () => {
             >
               View All Overdue
             </Button>
-          </Box>
+          </Grid>
 
-          <Grid container spacing={3}>
-            {/* Overdue Receivables */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.warningDark, marginBottom: "12px" }}>
-                📥 Overdue Customer Payments ({overdueReceivables.length})
-              </Typography>
-              {overdueReceivables.length === 0 ? (
-                <Typography variant="body2" color="textSecondary">
-                  No overdue receivables.
+          <Grid>
+            <Grid container
+              xs={12}
+              sx={{
+                width: "100%",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "24px",
+              }}>
+              {/* Overdue Receivables */}
+              <Grid xs={12}
+                md={6}
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.warningDark, marginBottom: "12px" }}>
+                  Overdue Customer Payments ({overdueReceivables.length})
                 </Typography>
-              ) : (
-                overdueReceivables.slice(0, 3).map((item) => (
-                  <Box key={item._id} sx={styles.overdueAlertCard}>
-                    <Box>
-                      <Typography sx={{ fontWeight: 600, fontSize: "14px", color: colors.textPrimary }}>
-                        {item.buyer?.name || "Customer"} (Bill #{item.billNumber})
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        Due: {new Date(item.dueDate).toLocaleDateString()} |{" "}
-                        <span style={{ color: colors.error, fontWeight: 600 }}>
-                          {item.daysOverdue} Days Late
-                        </span>
-                      </Typography>
-                      <Typography sx={{ fontWeight: 700, color: colors.error, fontSize: "15px", mt: 0.5 }}>
-                        Rs. {item.remainingAmount?.toLocaleString()}
-                      </Typography>
+                {overdueReceivables.length === 0 ? (
+                  <Typography variant="body2" color="textSecondary">
+                    No overdue receivables.
+                  </Typography>
+                ) : (
+                  overdueReceivables.slice(0, 3).map((item) => (
+                    <Box key={item._id} sx={styles.overdueAlertCard}>
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: "14px", color: colors.textPrimary }}>
+                          {item.buyer?.name || "Customer"} (Bill #{item.billNumber})
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          Due: {new Date(item.dueDate).toLocaleDateString()} |{" "}
+                          <span style={{ color: colors.error, fontWeight: 600 }}>
+                            {item.daysOverdue} Days Late
+                          </span>
+                        </Typography>
+                        <Typography sx={{ fontWeight: 700, color: colors.error, fontSize: "15px", mt: 0.5 }}>
+                          Rs. {item.remainingAmount?.toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="success"
+                        onClick={() => handleOpenPayment(item, "inflow")}
+                      >
+                        Collect
+                      </Button>
                     </Box>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="success"
-                      onClick={() => handleOpenPayment(item, "inflow")}
-                    >
-                      Collect
-                    </Button>
-                  </Box>
-                ))
-              )}
-            </Grid>
-
-            {/* Overdue Payables */}
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.errorDark, marginBottom: "12px" }}>
-                📤 Overdue Supplier Dues ({overduePayables.length})
-              </Typography>
-              {overduePayables.length === 0 ? (
-                <Typography variant="body2" color="textSecondary">
-                  No overdue payables.
+                  ))
+                )}
+              </Grid>
+              {/* Overdue Payables */}
+              <Grid xs={12}
+                md={6}
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: colors.errorDark, marginBottom: "12px" }}>
+                  Overdue Supplier Dues ({overduePayables.length})
                 </Typography>
-              ) : (
-                overduePayables.slice(0, 3).map((item) => (
-                  <Box
-                    key={item._id}
-                    sx={{ ...styles.overdueAlertCard, borderLeftColor: colors.errorDark }}
-                  >
-                    <Box>
-                      <Typography sx={{ fontWeight: 600, fontSize: "14px", color: colors.textPrimary }}>
-                        {item.miller?.name || "Supplier"} (Receipt #{item.receiptNumber})
-                      </Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        Due: {new Date(item.dueDate).toLocaleDateString()} |{" "}
-                        <span style={{ color: colors.errorDark, fontWeight: 600 }}>
-                          {item.daysOverdue} Days Late
-                        </span>
-                      </Typography>
-                      <Typography sx={{ fontWeight: 700, color: colors.errorDark, fontSize: "15px", mt: 0.5 }}>
-                        Rs. {item.remainingAmount?.toLocaleString()}
-                      </Typography>
-                    </Box>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="error"
-                      onClick={() => handleOpenPayment(item, "outflow")}
+                {overduePayables.length === 0 ? (
+                  <Typography variant="body2" color="textSecondary">
+                    No overdue payables.
+                  </Typography>
+                ) : (
+                  overduePayables.slice(0, 3).map((item) => (
+                    <Box
+                      key={item._id}
+                      sx={{ ...styles.overdueAlertCard, borderLeftColor: colors.errorDark }}
                     >
-                      Pay Now
-                    </Button>
-                  </Box>
-                ))
-              )}
+                      <Box>
+                        <Typography sx={{ fontWeight: 600, fontSize: "14px", color: colors.textPrimary }}>
+                          {item.miller?.name || "Supplier"} (Receipt #{item.receiptNumber})
+                        </Typography>
+                        <Typography variant="caption" color="textSecondary">
+                          Due: {new Date(item.dueDate).toLocaleDateString()} |{" "}
+                          <span style={{ color: colors.errorDark, fontWeight: 600 }}>
+                            {item.daysOverdue} Days Late
+                          </span>
+                        </Typography>
+                        <Typography sx={{ fontWeight: 700, color: colors.errorDark, fontSize: "15px", mt: 0.5 }}>
+                          Rs. {item.remainingAmount?.toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="error"
+                        onClick={() => handleOpenPayment(item, "outflow")}
+                      >
+                        Pay Now
+                      </Button>
+                    </Box>
+                  ))
+                )}
+              </Grid>
             </Grid>
           </Grid>
         </Paper>
       )}
 
       {/* Two Column Layout: Upcoming Dues & Recent Transactions */}
-      <Grid container spacing={3}>
+      <Grid container xs={12}
+        sx={{
+          width: "100%",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "24px",
+        }}>
         {/* Upcoming Dues */}
-        <Grid item xs={12} md={6}>
+        <Grid xs={12}
+          md={6}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+          }}>
           <Paper sx={styles.cardPanel}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <Typography sx={styles.sectionTitle}>
-                📅 Upcoming Due Dates
+                Upcoming Due Dates
               </Typography>
             </Box>
 
@@ -412,11 +401,16 @@ const Dashboard = () => {
         </Grid>
 
         {/* Recent Payment Transactions */}
-        <Grid item xs={12} md={6}>
+        <Grid xs={12}
+          md={6}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+          }}>
           <Paper sx={styles.cardPanel}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <Typography sx={styles.sectionTitle}>
-                📜 Recent Transactions
+                Recent Transactions
               </Typography>
               <Button
                 size="small"

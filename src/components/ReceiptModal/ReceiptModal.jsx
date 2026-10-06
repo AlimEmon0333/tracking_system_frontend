@@ -507,85 +507,127 @@ const ReceiptModal = ({ open, onClose, data, type = "sale" }) => {
             </Box>
           </Box>
 
-          {/* Item Details - For Sales & Stock */}
+          {/* Item Details - For Sales & Stock (Multi-Item or Single-Item) */}
           {(type === "sale" || type === "stock") && (
             <Box sx={styles.itemList}>
               <Typography sx={styles.sectionTitle}>
-                Item Details
+                {Array.isArray(data.items) && data.items.length > 1
+                  ? `Purchased / Billed Items (${data.items.length})`
+                  : "Item Details"}
               </Typography>
 
-              <Box sx={styles.itemRow}>
-                <Typography sx={styles.itemLabel}>
-                  Description / Item
-                </Typography>
-                <Typography sx={styles.itemValue}>
-                  {data.itemName || "Commercial Goods"}
-                </Typography>
-              </Box>
+              {Array.isArray(data.items) && data.items.length > 1 ? (
+                <Box sx={{ mb: 2 }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <thead>
+                      <tr style={{ backgroundColor: "#F1F5F9", borderBottom: `2px solid ${colors["300"]}` }}>
+                        <th style={{ textAlign: "left", padding: "8px 10px" }}>Item</th>
+                        <th style={{ textAlign: "center", padding: "8px 10px" }}>Qty (Katte)</th>
+                        <th style={{ textAlign: "center", padding: "8px 10px" }}>Weight (kg)</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px" }}>Rate</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px" }}>Bhardana</th>
+                        <th style={{ textAlign: "right", padding: "8px 10px" }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.items.map((it, idx) => (
+                        <tr key={it._id || idx} style={{ borderBottom: `1px solid ${colors["200"]}` }}>
+                          <td style={{ padding: "8px 10px", fontWeight: 600 }}>{it.itemName}</td>
+                          <td style={{ textAlign: "center", padding: "8px 10px" }}>{it.quantity || it.totalQuantity}</td>
+                          <td style={{ textAlign: "center", padding: "8px 10px" }}>{it.weight || it.totalWeight} kg</td>
+                          <td style={{ textAlign: "right", padding: "8px 10px" }}>Rs. {it.rate || it.purchaseRate}</td>
+                          <td style={{ textAlign: "right", padding: "8px 10px" }}>Rs. {it.bhardana || 0}</td>
+                          <td style={{ textAlign: "right", padding: "8px 10px", fontWeight: 700 }}>
+                            Rs. {(it.totalAmount || 0).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
-              <Box sx={styles.itemRow}>
-                <Typography sx={styles.itemLabel}>
-                  Quantity
-                </Typography>
-                <Typography sx={styles.itemValue}>
-                  {data.quantity || data.totalQuantity || "-"}
-                </Typography>
-              </Box>
+                  <Box
+                    sx={{
+                      ...styles.itemRow,
+                      fontWeight: 900,
+                      mt: 1.5,
+                      pt: 1,
+                      borderTop: `2px solid ${colors["300"]}`,
+                    }}
+                  >
+                    <Typography sx={{ ...styles.itemLabel, color: colors.primary }}>
+                      Combined Total
+                    </Typography>
+                    <Typography sx={{ ...styles.itemValue, color: colors.primary, fontWeight: 900 }}>
+                      Rs. {totalAmount.toLocaleString()}
+                    </Typography>
+                  </Box>
+                </Box>
+              ) : (
+                <>
+                  <Box sx={styles.itemRow}>
+                    <Typography sx={styles.itemLabel}>Description / Item</Typography>
+                    <Typography sx={styles.itemValue}>
+                      {data.itemName || (data.items && data.items[0]?.itemName) || "Commercial Goods"}
+                    </Typography>
+                  </Box>
 
-              <Box sx={styles.itemRow}>
-                <Typography sx={styles.itemLabel}>
-                  Weight
-                </Typography>
-                <Typography sx={styles.itemValue}>
-                  {data.weight || data.totalWeight
-                    ? `${data.weight || data.totalWeight} kg`
-                    : "-"}
-                </Typography>
-              </Box>
+                  <Box sx={styles.itemRow}>
+                    <Typography sx={styles.itemLabel}>Quantity</Typography>
+                    <Typography sx={styles.itemValue}>
+                      {data.quantity || data.totalQuantity || (data.items && (data.items[0]?.quantity || data.items[0]?.totalQuantity)) || "-"}
+                    </Typography>
+                  </Box>
 
-              <Box sx={styles.itemRow}>
-                <Typography sx={styles.itemLabel}>
-                  Rate
-                </Typography>
-                <Typography sx={styles.itemValue}>
-                  Rs. {data.rate || data.purchaseRate || 0}
-                </Typography>
-              </Box>
+                  <Box sx={styles.itemRow}>
+                    <Typography sx={styles.itemLabel}>Weight</Typography>
+                    <Typography sx={styles.itemValue}>
+                      {data.weight || data.totalWeight || (data.items && (data.items[0]?.weight || data.items[0]?.totalWeight))
+                        ? `${data.weight || data.totalWeight || (data.items[0]?.weight || data.items[0]?.totalWeight)} kg`
+                        : "-"}
+                    </Typography>
+                  </Box>
 
-              <Box sx={styles.itemRow}>
-                <Typography sx={styles.itemLabel}>
-                  Bhardana
-                </Typography>
-                <Typography sx={styles.itemValue}>
-                  Rs. {data.bhardana || 0}
-                </Typography>
-              </Box>
+                  <Box sx={styles.itemRow}>
+                    <Typography sx={styles.itemLabel}>Rate</Typography>
+                    <Typography sx={styles.itemValue}>
+                      Rs. {data.rate || data.purchaseRate || (data.items && (data.items[0]?.rate || data.items[0]?.purchaseRate)) || 0}
+                    </Typography>
+                  </Box>
 
-              <Box
-                sx={{
-                  ...styles.itemRow,
-                  fontWeight: 900,
-                }}
-              >
-                <Typography
-                  sx={{
-                    ...styles.itemLabel,
-                    color: colors.primary,
-                  }}
-                >
-                  Total Amount
-                </Typography>
+                  <Box sx={styles.itemRow}>
+                    <Typography sx={styles.itemLabel}>Bhardana</Typography>
+                    <Typography sx={styles.itemValue}>
+                      Rs. {data.bhardana || (data.items && data.items[0]?.bhardana) || 0}
+                    </Typography>
+                  </Box>
 
-                <Typography
-                  sx={{
-                    ...styles.itemValue,
-                    color: colors.primary,
-                    fontWeight: 900,
-                  }}
-                >
-                  Rs. {totalAmount}
-                </Typography>
-              </Box>
+                  <Box
+                    sx={{
+                      ...styles.itemRow,
+                      fontWeight: 900,
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        ...styles.itemLabel,
+                        color: colors.primary,
+                      }}
+                    >
+                      Total Amount
+                    </Typography>
+
+                    <Typography
+                      sx={{
+                        ...styles.itemValue,
+                        color: colors.primary,
+                        fontWeight: 900,
+                      }}
+                    >
+                      Rs. {totalAmount.toLocaleString()}
+                    </Typography>
+                  </Box>
+                </>
+              )}
             </Box>
           )}
 

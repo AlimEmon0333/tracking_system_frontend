@@ -1,30 +1,33 @@
+import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-
-import Login from "../pages/Login/Login";
-import Signup from "../pages/Signup/Signup";
-import Dashboard from "../pages/Dashboard/Dashboard";
-import Parties from "../pages/Dashboard/Parties/Parties";
-import AddParty from "../pages/Dashboard/Parties/AddParty/AddParty";
-import EditParty from "../pages/Dashboard/Parties/EditParty/EditParty";
-import PartyDetails from "../pages/Dashboard/Parties/PartyDetails/PartyDetails";
-
-import AuthLayout from "../layouts/AuthLayout/AuthLayout";
-import AppLayout from "../layouts/AppLayout/AppLayout";
 
 import ProtectedRoute from "./ProtectedRoute";
 import GuestRoute from "./GuestRoute";
-import AddStock from "../pages/Dashboard/Stock/AddStock/AddStock";
-import Stock from "../pages/Dashboard/Stock/Stock";
-import EditStock from "../pages/Dashboard/Stock/EditStock/EditStock";
-import UpdateStock from "../pages/Dashboard/Stock/UpdateStock/UpdateStock";
-import Sales from "../pages/Dashboard/Sales/Sales";
-import CreateInvoice from "../pages/Dashboard/Sales/createInvoice/CreateInvoice";
-import Payments from "../pages/Dashboard/Payments/Payments";
-import BankAccounts from "../pages/Dashboard/Bank/BankAccounts";
+
+const Login = lazy(() => import("../pages/Login/Login"));
+const Signup = lazy(() => import("../pages/Signup/Signup"));
+const Dashboard = lazy(() => import("../pages/Dashboard/Dashboard"));
+const Parties = lazy(() => import("../pages/Dashboard/Parties/Parties"));
+const AddParty = lazy(() => import("../pages/Dashboard/Parties/AddParty/AddParty"));
+const EditParty = lazy(() => import("../pages/Dashboard/Parties/EditParty/EditParty"));
+const PartyDetails = lazy(() => import("../pages/Dashboard/Parties/PartyDetails/PartyDetails"));
+const AuthLayout = lazy(() => import("../layouts/AuthLayout/AuthLayout"));
+const AppLayout = lazy(() => import("../layouts/AppLayout/AppLayout"));
+const AddStock = lazy(() => import("../pages/Dashboard/Stock/AddStock/AddStock"));
+const Stock = lazy(() => import("../pages/Dashboard/Stock/Stock"));
+const EditStock = lazy(() => import("../pages/Dashboard/Stock/EditStock/EditStock"));
+const UpdateStock = lazy(() => import("../pages/Dashboard/Stock/UpdateStock/UpdateStock"));
+const Sales = lazy(() => import("../pages/Dashboard/Sales/Sales"));
+const CreateInvoice = lazy(() => import("../pages/Dashboard/Sales/createInvoice/CreateInvoice"));
+const Payments = lazy(() => import("../pages/Dashboard/Payments/Payments"));
+const BankAccounts = lazy(() => import("../pages/Dashboard/Bank/BankAccounts"));
+
+const RouteLoader = () => <div className="route-loader">Loading...</div>;
 
 export default function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<RouteLoader />}>
+      <Routes>
       {/* Public Routes */}
       <Route element={<GuestRoute />}>
         <Route element={<AuthLayout />}>
@@ -51,6 +54,7 @@ export default function AppRoutes() {
           <Route path="/bank" element={<BankAccounts />} />
         </Route>
       </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

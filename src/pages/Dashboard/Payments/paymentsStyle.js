@@ -91,4 +91,106 @@ export const paymentsStyles = () => ({
     fontSize: "12px",
     fontWeight: 600,
   },
+  modalPaper: {
+    width: "100%",
+    maxWidth: "640px",
+    borderRadius: borderRadius.xl,
+    overflow: "hidden",
+  },
+  modalTitle: {
+    padding: "20px 24px",
+    fontSize: "16px",
+    fontWeight: 700,
+    color: colors.textPrimary,
+    borderBottom: `1px solid ${colors.border}`,
+  },
+  modalContent: {
+    padding: "24px !important",
+  },
+  modalInfoBanner: (isInflow) => ({
+    display: "flex",
+    alignItems: { xs: "flex-start", sm: "center" },
+    justifyContent: "space-between",
+    flexDirection: { xs: "column", sm: "row" },
+    gap: "12px",
+    padding: "18px 20px",
+    marginBottom: "20px",
+    backgroundColor: isInflow ? colors.infoLight : colors.warningLight,
+    borderLeft: `4px solid ${isInflow ? colors.info : colors.warning}`,
+    borderRadius: borderRadius.md,
+  }),
+  modalPartyName: {
+    fontSize: "16px",
+    fontWeight: 700,
+    color: colors.textPrimary,
+    marginBottom: "4px",
+  },
+  modalReference: {
+    fontSize: "13px",
+    color: colors.textSecondary,
+    lineHeight: 1.5,
+  },
+  modalDueChip: {
+    backgroundColor: colors.white,
+    color: colors.error,
+    border: `1px solid ${colors.errorLight}`,
+    fontWeight: 700,
+    fontSize: "13px",
+  },
+  modalFullBalanceRow: {
+    display: "flex",
+    justifyContent: "flex-end",
+    marginBottom: "20px",
+  },
+  modalFullBalanceButton: {
+    minHeight: "40px",
+    padding: "8px 14px",
+    color: colors.primary,
+    borderColor: colors.primary,
+    borderRadius: borderRadius.md,
+    textTransform: "none",
+    fontWeight: 700,
+    "&:hover": {
+      borderColor: colors.primary,
+      backgroundColor: colors.infoLight,
+    },
+  },
+  modalFormGrid: {
+    display: "grid",
+    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+    gap: "18px",
+  },
+  modalFieldFull: {
+    gridColumn: { xs: "auto", sm: "1 / -1" },
+  },
+  modalDateField: {
+    width: "100%",
+  },
+  modalNotes: {
+    "& .MuiInputBase-root": {
+      alignItems: "flex-start",
+    },
+  },
+  modalActions: {
+    padding: "16px 24px",
+    gap: "8px",
+    borderTop: `1px solid ${colors.border}`,
+  },
+  modalCancelButton: {
+    color: colors.textSecondary,
+    textTransform: "none",
+    fontWeight: 600,
+  },
+  modalSubmitButton: (isInflow) => ({
+    minHeight: "42px",
+    padding: "8px 18px",
+    backgroundColor: isInflow ? colors.successDark : colors.secondary,
+    color: colors.white,
+    borderRadius: borderRadius.md,
+    textTransform: "none",
+    fontWeight: 700,
+    "&:hover": {
+      backgroundColor: isInflow ? colors.success : colors.secondary,
+    },
+  }),
 });

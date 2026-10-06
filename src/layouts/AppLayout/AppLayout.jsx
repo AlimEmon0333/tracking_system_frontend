@@ -95,7 +95,7 @@ export default function AppLayout() {
         <Box sx={styles.userProfileContainer}>
           <Avatar sx={styles.userAvatar}>{userInitials}</Avatar>
           <Box>
-            <Typography sx={styles.userName}>{userName}</Typography>
+            <Typography sx={styles.userName}>{userName}</Typography> 
             <Typography sx={styles.userRole}>Administrator</Typography>
           </Box>
         </Box>

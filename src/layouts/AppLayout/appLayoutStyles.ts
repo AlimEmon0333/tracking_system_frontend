@@ -101,8 +101,11 @@ export const appLayoutStyle = (
     borderRadius: borderRadius.md,
     marginBottom: "4px",
     padding: "10px 16px",
-    color: isActive ? colors.white : colors.textMuted,
+    color: colors.white,
     backgroundColor: isActive ? colors.primary : "transparent",
+    "& .MuiListItemText-primary": {
+      color: colors.white,
+    },
     "&:hover": {
       backgroundColor: isActive ? colors.primary : "rgba(255,255,255,0.05)",
       color: colors.white,
@@ -112,7 +115,7 @@ export const appLayoutStyle = (
 
   menuIcon: (isActive: boolean) => ({
     minWidth: "40px",
-    color: isActive ? colors.white : colors.textMuted,
+    color: colors.white,
   }),
 
   logoutButton: {

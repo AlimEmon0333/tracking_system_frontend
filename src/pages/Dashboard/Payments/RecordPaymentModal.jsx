@@ -10,11 +10,9 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Grid,
   Typography,
   Chip,
   Box,
-  Divider,
 } from "@mui/material";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -22,7 +20,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs from "dayjs";
 import { toast } from "react-toastify";
 import api from "../../../api/axios";
-import { colors } from "../../../styles/theme";
+import { paymentsStyles } from "./paymentsStyle";
 
 const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
   const [amount, setAmount] = useState("");
@@ -33,6 +31,9 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const isInflow = targetData?.type === "inflow";
+  const remaining = Number(targetData?.remainingAmount || 0);
+  const styles = paymentsStyles();
 
   const fetchBankAccounts = async () => {
     try {
@@ -64,9 +65,6 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
   }, [open, targetData]);
 
   if (!targetData) return null;
-
-  const isInflow = targetData.type === "inflow";
-  const remaining = Number(targetData.remainingAmount || 0);
 
   const handleFullAmount = () => {
     setAmount(remaining.toString());
@@ -128,64 +126,46 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700, color: colors.textPrimary, borderBottom: `1px solid ${colors.border}`, pb: 2 }}>
-        {isInflow ? "📥 Collect Customer Payment" : "📤 Pay Supplier / Miller"}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      fullWidth
+      maxWidth="sm"
+      PaperProps={{ sx: styles.modalPaper }}
+    >
+      <DialogTitle sx={styles.modalTitle}>
+        {isInflow ? "Collect Customer Payment" : "Pay Supplier / Miller"}
       </DialogTitle>
 
-      <DialogContent sx={{ mt: 2 }}>
-        {/* Banner Info */}
-        <Box
-          sx={{
-            backgroundColor: isInflow ? colors.infoLight : colors.warningLight,
-            padding: "16px",
-            borderRadius: "8px",
-            marginBottom: "20px",
-            borderLeft: `4px solid ${isInflow ? colors.infoDark : colors.warningDark}`,
-          }}
-        >
-          <Grid container spacing={1} justifyContent="space-between" alignItems="center">
-            <Grid item xs={12} sm={8}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: colors.textPrimary }}>
-                {targetData.partyName}
-              </Typography>
-              <Typography variant="body2" color="textSecondary">
-                Ref #: <strong>{targetData.referenceNumber || "N/A"}</strong>
-                {targetData.itemName ? ` | Item: ${targetData.itemName}` : ""}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={4} sx={{ textAlign: { xs: "left", sm: "right" } }}>
-              <Chip
-                label={`Due: Rs. ${remaining}`}
-                sx={{
-                  backgroundColor: colors.surface,
-                  color: colors.error,
-                  fontWeight: 700,
-                  fontSize: "14px",
-                  border: `1px solid ${colors.errorLight}`,
-                }}
-              />
-            </Grid>
-          </Grid>
+      <DialogContent sx={styles.modalContent}>
+        <Box sx={styles.modalInfoBanner(isInflow)}>
+          <Box>
+            <Typography sx={styles.modalPartyName}>
+              {targetData.partyName}
+            </Typography>
+            <Typography sx={styles.modalReference}>
+              Ref #: <strong>{targetData.referenceNumber || "N/A"}</strong>
+              {targetData.itemName ? ` | Item: ${targetData.itemName}` : ""}
+            </Typography>
+          </Box>
+          <Chip label={`Due: Rs. ${remaining.toLocaleString()}`} sx={styles.modalDueChip} />
         </Box>
 
-        {/* Quick Full Pay Action */}
-        <Box sx={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+        <Box sx={styles.modalFullBalanceRow}>
           <Button
             size="small"
             variant="outlined"
             onClick={handleFullAmount}
-            sx={{ textTransform: "none", fontWeight: 600, color: colors.primary, borderColor: colors.primary }}
+            sx={styles.modalFullBalanceButton}
           >
-            Fill Full Balance (Rs. {remaining})
+            Fill Full Balance (Rs. {remaining.toLocaleString()})
           </Button>
         </Box>
 
-        <Grid container spacing={3}>
-          {/* Amount Field */}
-          <Grid item xs={12}>
+        <Box sx={styles.modalFormGrid}>
+          <Box>
             <TextField
-              label="Payment Amount (Rs.) *"
+              label="Payment Amount (Rs.)"
               variant="outlined"
               fullWidth
               type="number"
@@ -198,11 +178,21 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
                 inputProps: { min: 1, max: remaining, step: "any" },
               }}
             />
-          </Grid>
+          </Box>
 
-          {/* Bank Account Selector — only for supplier payments (outflow) */}
+          <Box>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DatePicker
+                label="Payment Date"
+                value={paymentDate}
+                onChange={(date) => setPaymentDate(date)}
+                slotProps={{ textField: { fullWidth: true, variant: "outlined", sx: styles.modalDateField } }}
+              />
+            </LocalizationProvider>
+          </Box>
+
           {!isInflow && (
-            <Grid item xs={12}>
+            <Box sx={styles.modalFieldFull}>
               <FormControl fullWidth variant="outlined">
                 <InputLabel id="bank-account-select-label">
                   Deduct From Bank / Cash Account
@@ -224,23 +214,10 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
                   )}
                 </Select>
               </FormControl>
-            </Grid>
+            </Box>
           )}
 
-          {/* Payment Date */}
-          <Grid item xs={12} sm={6}>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker
-                label="Payment Date"
-                value={paymentDate}
-                onChange={(date) => setPaymentDate(date)}
-                slotProps={{ textField: { fullWidth: true, variant: "outlined" } }}
-              />
-            </LocalizationProvider>
-          </Grid>
-
-          {/* Payment Method */}
-          <Grid item xs={12} sm={6}>
+          <Box>
             <FormControl fullWidth variant="outlined">
               <InputLabel id="payment-method-label">Payment Method</InputLabel>
               <Select
@@ -256,10 +233,9 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
                 <MenuItem value="other">Other</MenuItem>
               </Select>
             </FormControl>
-          </Grid>
+          </Box>
 
-          {/* Notes / Remarks */}
-          <Grid item xs={12}>
+          <Box sx={styles.modalFieldFull}>
             <TextField
               label="Transaction Notes / Cheque # / Bank Ref"
               variant="outlined"
@@ -269,13 +245,14 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Paid via Meezan Online Transfer, Cheque #49281..."
+              sx={styles.modalNotes}
             />
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </DialogContent>
 
-      <DialogActions sx={{ padding: "16px 24px", borderTop: `1px solid ${colors.border}` }}>
-        <Button onClick={onClose} disabled={loading} color="inherit">
+      <DialogActions sx={styles.modalActions}>
+        <Button onClick={onClose} disabled={loading} sx={styles.modalCancelButton}>
           Cancel
         </Button>
         <Button
@@ -283,14 +260,7 @@ const RecordPaymentModal = ({ open, onClose, targetData, onSuccess }) => {
           variant="contained"
           disabled={loading || !!error || !amount}
           disableElevation
-          sx={{
-            backgroundColor: isInflow ? colors.successDark : colors.secondary,
-            color: colors.white,
-            fontWeight: 700,
-            "&:hover": {
-              backgroundColor: isInflow ? colors.success : colors.secondaryLight,
-            },
-          }}
+          sx={styles.modalSubmitButton(isInflow)}
         >
           {loading ? "Recording..." : isInflow ? "Confirm Received" : "Confirm Payment"}
         </Button>

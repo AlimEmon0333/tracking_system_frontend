@@ -37,9 +37,11 @@ import { useNavigate } from "react-router-dom";
 
 import api from "../../../api/axios";
 import { colors } from "../../../styles/theme";
-import { stockStyles } from "./stockStyles";
 import RecordPaymentModal from "../Payments/RecordPaymentModal";
 import ReceiptModal from "../../../components/ReceiptModal/ReceiptModal";
+import TransactionDetailsModal from "../../../components/TransactionModal/TransactionDetailsModal";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { stockStyles } from "./stockStyles";
 
 const Stock = () => {
   const styles = stockStyles();
@@ -64,6 +66,25 @@ const Stock = () => {
   // Receipt Modal State
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptData, setReceiptData] = useState(null);
+
+  // Transaction Details Modal State
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
+
+  const handleOpenDetails = (stock) => {
+    setSelectedStock(stock);
+    setDetailModalOpen(true);
+  };
+
+  const handleOpenReceipt = async (stock) => {
+    try {
+      const res = await api.get(`/stock/stocks/${stock._id}`);
+      setReceiptData(res.data.data);
+    } catch {
+      setReceiptData(stock);
+    }
+    setReceiptOpen(true);
+  };
 
   const fetchStocks = async () => {
     try {
@@ -316,21 +337,86 @@ const Stock = () => {
                 const remaining = Number(stock.remainingAmount || 0);
 
                 return (
-                  <TableRow key={stock._id} hover>
-                    <TableCell sx={{ fontWeight: 600 }}>#{stock.receiptNumber}</TableCell>
+                  <TableRow
+                    key={stock._id}
+                    hover
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => handleOpenDetails(stock)}
+                  >
+                    <TableCell>
+                      <Chip
+                        icon={<ReceiptLongIcon style={{ fontSize: "14px", color: colors.primary }} />}
+                        label={`#${stock.receiptNumber}`}
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenDetails(stock);
+                        }}
+                        sx={{
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          bgcolor: colors.infoLight,
+                          color: colors.primary,
+                          "&:hover": { bgcolor: "#BFDBFE" },
+                        }}
+                      />
+                    </TableCell>
                     <TableCell>
                       <Box>
                         <Typography variant="body2" sx={{ fontWeight: 500 }}>{date}</Typography>
                         <Box mt={0.5}>{renderDueDate(stock)}</Box>
                       </Box>
                     </TableCell>
-                    <TableCell sx={{ fontWeight: 500 }}>
-                      {stock.millerId?.name || "N/A"}
+                    <TableCell sx={{ fontWeight: 600 }}>
+                      {stock.millerId ? (
+                        <Typography
+                          variant="body2"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/parties/${stock.millerId._id || stock.millerId}`);
+                          }}
+                          sx={{
+                            fontWeight: 600,
+                            color: colors.primary,
+                            cursor: "pointer",
+                            "&:hover": { textDecoration: "underline" },
+                          }}
+                        >
+                          {stock.millerId?.name}
+                        </Typography>
+                      ) : (
+                        "N/A"
+                      )}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={600}>{stock.itemName}</Typography>
-                      <Typography variant="caption" color="textSecondary">
-                        Remaining: {stock.remainingQuantity} Qty
+                      <Typography variant="body2" fontWeight={700}>{stock.itemName}</Typography>
+                      <Box sx={{ display: "flex", gap: 0.8, alignItems: "center", mt: 0.5, flexWrap: "wrap" }}>
+                        <Chip
+                          label={`Purchased: ${stock.totalQuantity} Qty`}
+                          size="small"
+                          sx={{
+                            backgroundColor: colors.surfaceMuted,
+                            color: colors.textPrimary,
+                            fontWeight: 600,
+                            fontSize: "11px",
+                            height: "22px",
+                            border: `1px solid ${colors.border}`,
+                          }}
+                        />
+                        <Chip
+                          label={`Remaining: ${stock.remainingQuantity} Qty`}
+                          size="small"
+                          sx={{
+                            backgroundColor: stock.remainingQuantity > 0 ? colors.successLight : colors.errorLight,
+                            color: stock.remainingQuantity > 0 ? colors.successDark : colors.errorDark,
+                            fontWeight: 700,
+                            fontSize: "11px",
+                            height: "22px",
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="caption" color="textSecondary" sx={{ display: "block", mt: 0.3 }}>
+                        {stock.weightPerKatta} kg/katta • Total: {stock.totalWeight} kg
                       </Typography>
                     </TableCell>
                     <TableCell sx={{ fontWeight: 600 }}>
@@ -351,8 +437,18 @@ const Stock = () => {
                         <Box sx={styles.outOfStock}>Out of Stock</Box>
                       )}
                     </TableCell>
-                    <TableCell align="right">
-                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                    <TableCell align="right" onClick={(e) => e.stopPropagation()}>
+                      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 0.8 }}>
+                        <Tooltip title="View Transaction & Stock Movement Details">
+                          <IconButton
+                            size="small"
+                            sx={{ color: colors.primary, bgcolor: colors.surfaceMuted }}
+                            onClick={() => handleOpenDetails(stock)}
+                          >
+                            <VisibilityIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+
                         {remaining > 0 && (
                           <Tooltip title="Pay Supplier">
                             <IconButton
@@ -368,10 +464,7 @@ const Stock = () => {
                           <IconButton
                             size="small"
                             sx={{ color: colors.primary, bgcolor: colors.infoLight }}
-                            onClick={() => {
-                              setReceiptData(stock);
-                              setReceiptOpen(true);
-                            }}
+                            onClick={() => handleOpenReceipt(stock)}
                           >
                             <ReceiptLongIcon fontSize="small" />
                           </IconButton>
@@ -441,6 +534,26 @@ const Stock = () => {
         }}
         data={receiptData}
         type="stock"
+      />
+
+      {/* Transaction Details Modal */}
+      <TransactionDetailsModal
+        open={detailModalOpen}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setSelectedStock(null);
+        }}
+        initialData={selectedStock}
+        transactionId={selectedStock?._id}
+        type="stock"
+        onRecordPayment={(stk) => {
+          setDetailModalOpen(false);
+          handlePaySupplier(stk);
+        }}
+        onOpenReceipt={(stk) => {
+          setReceiptData(stk);
+          setReceiptOpen(true);
+        }}
       />
     </Box>
   );
