@@ -39,7 +39,7 @@ import RecordPaymentModal from "../Payments/RecordPaymentModal";
 import ReceiptModal from "../../../components/ReceiptModal/ReceiptModal";
 import TransactionDetailsModal from "../../../components/TransactionModal/TransactionDetailsModal";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import { SalesStyles } from "./SalesStyle";
+import { SalesStyles } from "./salesStyle";
 
 const Sales = () => {
   const styles = SalesStyles();
